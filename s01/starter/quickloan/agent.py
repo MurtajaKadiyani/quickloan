@@ -10,11 +10,16 @@ Run the agent from the session folder:
 Session 1 graph:
     START --> respond --> END
 """
-from langgraph.graph import END, StateGraph
+import sqlite3
 
+from langgraph.graph import END, StateGraph
+from uuid import uuid4
+
+from .config import CHECKPOINT_DB
+from langgraph.checkpoint.sqlite import SqliteSaver
 from .nodes import respond
 from .state import QuickLoanState
-
+from .config import CHECKPOINT_DB
 
 # ---------------------------------------------------------------------------
 # TODO 5 of 5 -- build_graph
@@ -38,14 +43,16 @@ from .state import QuickLoanState
 #
 # ---------------------------------------------------------------------------
 
-def build_graph():
+def build_graph(checkpointer = None):
     # START --> respond --> END
     builder = StateGraph(QuickLoanState)
     builder.add_node("respond", respond)
-    builder.set_entry_point("respond")
-    builder.add_edge("respond", END)
+    builder.set_entry_point("respond") #START
+    builder.add_edge("respond", END) # END
     return builder.compile()
-
+    if checkpointer is None:
+        checkpointer = MemorySaver()
+    return builder.compile(checkpointer=checkpointer)
 
 # Module-level graph instance required by langgraph.json for LangGraph Studio.
 # run() uses this directly rather than building a second copy.
@@ -57,6 +64,10 @@ graph = build_graph()
 # ---------------------------------------------------------------------------
 
 def run() -> None:
+    conn = sqlite3.connect(str(CHECKPOINT_DB), check_same_thread=False)
+    _graph    = build_graph(checkpointer=SqliteSaver(conn))  # terminal app opts into disk persistence explicit
+    thread_id = str(uuid4())
+    config    = {"configurable": {"thread_id": thread_id}}
     print("=" * 55)
     print("  QuickLoan | FastFinance India")
     print("  Type 'quit' to exit")
@@ -74,8 +85,10 @@ def run() -> None:
         if user_input.lower() in {"quit", "exit", "bye"}:
             print("\nQuickLoan: Thank you for choosing FastFinance India. Goodbye!")
             break
-
-        result = graph.invoke({"customer_message": user_input, "response": ""})
+        
+        # "response": "" is a placeholder to satisfy the TypedDict contract.
+        # respond() overwrites it; graph.invoke() returns the full merged state.
+        result = _graph.invoke({"customer_message": user_input, "response": ""},config=config) # type: ignore
         print(f"\nQuickLoan: {result['response']}")
 
 
