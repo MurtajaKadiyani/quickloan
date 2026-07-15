@@ -27,6 +27,7 @@ class QuickLoanState(TypedDict):
    customer_message : str
    response         : str
    history: list[dict]
+   query_type: str
 
 
 # Guard: raises at import time if the fields haven't been defined yet.

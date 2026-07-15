@@ -17,9 +17,9 @@ from uuid import uuid4
 
 from .config import CHECKPOINT_DB
 from langgraph.checkpoint.sqlite import SqliteSaver
-from .nodes import respond
+from langgraph.checkpoint.memory import MemorySaver
+from .nodes import classify, decline, escalate, respond, route_query
 from .state import QuickLoanState
-from .config import CHECKPOINT_DB
 
 # ---------------------------------------------------------------------------
 # TODO 5 of 5 -- build_graph
@@ -44,12 +44,22 @@ from .config import CHECKPOINT_DB
 # ---------------------------------------------------------------------------
 
 def build_graph(checkpointer = None):
-    # START --> respond --> END
+    # START -> Classify -> based on route_query decide next node to be executed.
     builder = StateGraph(QuickLoanState)
+    builder.add_node("classify", classify)
+    builder.add_node("decline", decline)
+    builder.add_node("escalate", escalate)
     builder.add_node("respond", respond)
-    builder.set_entry_point("respond") #START
-    builder.add_edge("respond", END) # END
-    return builder.compile()
+    
+    builder.set_entry_point("classify") #START
+    builder.add_conditional_edges("classify", route_query, {
+        "respond": "respond",
+        "escalate": "escalate",
+        "decline": "decline"
+    })
+    builder.add_edge("respond", END)
+    builder.add_edge("escalate", END)   
+    builder.add_edge("decline", END)
     if checkpointer is None:
         checkpointer = MemorySaver()
     return builder.compile(checkpointer=checkpointer)
@@ -89,8 +99,9 @@ def run() -> None:
         # "response": "" is a placeholder to satisfy the TypedDict contract.
         # respond() overwrites it; graph.invoke() returns the full merged state.
         result = _graph.invoke({"customer_message": user_input, "response": ""},config=config) # type: ignore
+        route = result.get("query_type", "?")
+        print(f"\n[Routed: {route}]")
         print(f"\nQuickLoan: {result['response']}")
-
 
 if __name__ == "__main__":
     run()
