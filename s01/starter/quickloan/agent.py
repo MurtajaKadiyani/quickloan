@@ -14,12 +14,13 @@ import sqlite3
 
 from langgraph.graph import END, StateGraph
 from uuid import uuid4
+import os
 
-from .config import CHECKPOINT_DB
+from quickloan.config import CHECKPOINT_DB, ESCALATE_RESPONSE
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.checkpoint.memory import MemorySaver
-from .nodes import classify, decline, escalate, respond, route_query
-from .state import QuickLoanState
+from quickloan.nodes import classify, decline, escalate, respond, retrieve_docs, route_query
+from quickloan.state import QuickLoanState
 
 # ---------------------------------------------------------------------------
 # TODO 5 of 5 -- build_graph
@@ -48,20 +49,21 @@ def build_graph(checkpointer = None):
     builder = StateGraph(QuickLoanState)
     builder.add_node("classify", classify)
     builder.add_node("decline", decline)
-    builder.add_node("escalate", escalate)
+    # builder.add_node("escalate", escalate)
     builder.add_node("respond", respond)
+    builder.add_node("retrieve_docs", retrieve_docs)
     
     builder.set_entry_point("classify") #START
     builder.add_conditional_edges("classify", route_query, {
-        "respond": "respond",
-        "escalate": "escalate",
+        "retrieve_docs": "retrieve_docs",
         "decline": "decline"
     })
+    builder.add_edge("retrieve_docs", "respond")
     builder.add_edge("respond", END)
-    builder.add_edge("escalate", END)   
+    # builder.add_edge("escalate", END)   
     builder.add_edge("decline", END)
-    if checkpointer is None:
-        checkpointer = MemorySaver()
+    #if checkpointer is None:
+    #    checkpointer = MemorySaver()
     return builder.compile(checkpointer=checkpointer)
 
 # Module-level graph instance required by langgraph.json for LangGraph Studio.
@@ -82,6 +84,12 @@ def run() -> None:
     print("  QuickLoan | FastFinance India")
     print("  Type 'quit' to exit")
     print("=" * 55)
+    print(f"  Session: {thread_id[:8]}...")  # sanity check -- confirms config actually reached graph.invoke()
+
+    if os.getenv("LANGSMITH_TRACING", "").lower() == "true": # type: ignore
+        project = os.getenv("LANGSMITH_PROJECT", "batch1-quickloan") # type: ignore
+        print(f"  Tracing : LangSmith ({project})")
+    print("=" * 55)
 
     while True:
         try:
@@ -100,7 +108,14 @@ def run() -> None:
         # respond() overwrites it; graph.invoke() returns the full merged state.
         result = _graph.invoke({"customer_message": user_input, "response": ""},config=config) # type: ignore
         route = result.get("query_type", "?")
+        docs = result.get("retrieved_docs", [])
+        response = result["response"]
         print(f"\n[Routed: {route}]")
+        if docs and response != ESCALATE_RESPONSE:
+            sources = {d.split("]\n")[0].lstrip("[") for d in docs if "]\n" in d}
+            print(f"  [Retrieved {len(docs)} chunk(s) from: {', '.join(sorted(sources))}]")
+        else:
+            print()
         print(f"\nQuickLoan: {result['response']}")
 
 if __name__ == "__main__":
