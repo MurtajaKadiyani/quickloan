@@ -49,18 +49,19 @@ def build_graph(checkpointer = None):
     builder = StateGraph(QuickLoanState)
     builder.add_node("classify", classify)
     builder.add_node("decline", decline)
-    # builder.add_node("escalate", escalate)
+    builder.add_node("escalate", escalate)
     builder.add_node("respond", respond)
     builder.add_node("retrieve_docs", retrieve_docs)
-    
+
     builder.set_entry_point("classify") #START
     builder.add_conditional_edges("classify", route_query, {
         "retrieve_docs": "retrieve_docs",
+        "escalate": "escalate",
         "decline": "decline"
     })
     builder.add_edge("retrieve_docs", "respond")
     builder.add_edge("respond", END)
-    # builder.add_edge("escalate", END)   
+    builder.add_edge("escalate", END)
     builder.add_edge("decline", END)
     #if checkpointer is None:
     #    checkpointer = MemorySaver()

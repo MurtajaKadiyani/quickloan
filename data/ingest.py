@@ -1,9 +1,9 @@
 """
 data/ingest.py
 --------------
-Ingests FastFinance India policy documents into ChromaDB.
+Ingests FastFinance India loan documents into ChromaDB.
 
-Run independently of seed.py (no dependency between them):
+Run after seed.py:
     python data/ingest.py
 
 What this script does:
@@ -28,11 +28,10 @@ Why local embeddings (HuggingFace) rather than OpenAI embeddings?
 
 Why are rates NOT in these documents?
   Rates are in data/fastfinance_data.db (see seed.py). Putting "personal loan:
-  10.5%" in a document would create two sources of truth. When a rate slab
-  changes (seed.py is re-run), the document would still say 10.5% while the
-  database says something else. The compliance node (US-08, Session 9)
-  specifically checks that the agent never retrieves stale rate information
-  from documents.
+  11.5%" in a document would create two sources of truth. When rates change
+  (seed.py is re-run), the document would still show the old figure while the
+  database has the new one. The compliance node checks that QuickLoan never
+  retrieves rate information from documents -- rates must come from a tool call.
 
 Windows path note:
   ChromaDB's persist_directory requires a string. We pass str(VECTOR_DIR) where
@@ -47,6 +46,7 @@ from typing import List
 
 from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import TextLoader
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
@@ -76,7 +76,7 @@ def load_documents() -> List[Document]:
     """
     if not DOCS_DIR.exists():
         print(f"Error: Documents directory not found at {DOCS_DIR}", file=sys.stderr)
-        print("Check that data/documents/ exists and hasn't been moved or renamed.", file=sys.stderr)
+        print("Make sure you are running this script from the quickloan/ folder.", file=sys.stderr)
         sys.exit(1)
 
     docs = []
@@ -86,13 +86,15 @@ def load_documents() -> List[Document]:
         sys.exit(1)
 
     for path in md_files:
-        text = path.read_text(encoding="utf-8")
-        if not text.strip():
-            print(f"  Warning: {path.name} is empty -- skipping", file=sys.stderr)
+        loader = TextLoader(str(path), encoding="utf-8")
+        loaded = loader.load()
+        if not loaded:
+            print(f"  Warning: {path.name} loaded as empty -- skipping", file=sys.stderr)
             continue
-        doc = Document(page_content=text, metadata={"source": path.name})
-        docs.append(doc)
-        print(f"  Loaded: {path.name:40s} ({len(text):,} chars)")
+        for doc in loaded:
+            doc.metadata["source"] = path.name
+        docs.extend(loaded)
+        print(f"  Loaded: {path.name:40s} ({len(loaded[0].page_content):,} chars)")
 
     return docs
 
@@ -140,29 +142,15 @@ def main() -> None:
     VECTOR_DIR.mkdir(parents=True, exist_ok=True)
 
     print("Building vector store...")
-    # Configure Chroma's HNSW index to use cosine similarity.
-    #
-    # During retrieval, Chroma compares the query embedding with every stored
-    # embedding using this metric. Cosine measures the angle between vectors,
-    # making it well-suited for semantic text similarity.
-    #
-    # This metric becomes part of the HNSW index structure when the collection
-    # is created and cannot be changed later. Switching to a different metric
-    # (e.g., L2) requires rebuilding the vector store.
-    #
-    # For the FastFinance corpus, cosine also produces similarity scores that
-    # separate meaningful queries from noise more cleanly, making thresholding
-    # (e.g., 0.3) easier to tune.
     Chroma.from_documents(
         documents=chunks,
         embedding=embeddings,
         persist_directory=str(VECTOR_DIR),
-        collection_metadata={"hnsw:space": "cosine"},
     )
 
     print(f"\nDone. {len(chunks)} chunks stored at {VECTOR_DIR}")
     print("Run 'python data/ingest.py' again after adding or editing documents.")
-    print("\nSetup complete. Run 'python -m quickloan.agent' from s01/starter/ to start QuickLoan.")
+    print("\nSetup complete. Run 'python s01/solution/main.py' to start QuickLoan.")
 
 
 if __name__ == "__main__":
