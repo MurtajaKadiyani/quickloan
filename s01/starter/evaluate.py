@@ -47,7 +47,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
     raise ValueError("GROQ_API_KEY not found. Check your .env file.")
 
-MODEL_NAME  = "meta-llama/llama-4-scout-17b-16e-instruct"
+MODEL_NAME  = "llama-3.3-70b-versatile"  # judge stays off the agent's model to avoid self-grading bias; no tool calls needed here
 PASS_SCORE  = 3   # minimum judge score (out of 5) for a SIMPLE question to pass
 
 DATA_DIR     = Path(__file__).parent.parent.parent / "data"
@@ -62,6 +62,7 @@ judge_llm = ChatGroq(
     model=MODEL_NAME,
     temperature=0.0,
     max_tokens=100,
+    max_retries=6,
 )
 
 JUDGE_PROMPT = """You are evaluating a loan AI assistant's response to a customer question.
