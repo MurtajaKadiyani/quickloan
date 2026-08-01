@@ -13,8 +13,8 @@ from langchain_core.tools import tool
 from langchain_groq import ChatGroq
 
 from .config import (
-    CLASSIFIER_MAX_TOKENS, CLASSIFIER_TEMPERATURE, DB_PATH, MAX_TOKENS,
-    MODEL_NAME, TEMPERATURE,
+    CLASSIFIER_MAX_TOKENS, CLASSIFIER_MODEL_NAME, CLASSIFIER_TEMPERATURE, DB_PATH,
+    MAX_TOKENS, MODEL_NAME, TEMPERATURE,
 )
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -31,13 +31,15 @@ llm = ChatGroq(
     model=MODEL_NAME, # type: ignore
     temperature=TEMPERATURE,
     max_tokens=MAX_TOKENS,
+    max_retries=6,  # openai/gpt-oss-20b sits on an 8000 TPM free-tier cap -- back off and retry through 429s
 )
 
 classifier_llm = ChatGroq(
     api_key=GROQ_API_KEY, # type: ignore
-    model=MODEL_NAME,
+    model=CLASSIFIER_MODEL_NAME,
     temperature=CLASSIFIER_TEMPERATURE,
     max_tokens=CLASSIFIER_MAX_TOKENS,
+    max_retries=6,
 )
 
 @tool

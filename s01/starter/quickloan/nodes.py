@@ -91,7 +91,17 @@ def respond(state: QuickLoanState) -> dict:
                 tool_output = _run_tool(tc["name"], tc["args"])
                 print(f"[QuickLoan] Tool: {tc['name']}({tc['args']}) -> {str(tool_output)[:80]}")
                 messages.append(ToolMessage(content=str(tool_output), tool_call_id=tc["id"])) # type: ignore
-            result = llm.invoke(messages)
+
+            # gpt-oss-20b occasionally hallucinates a tool call on this synthesis step even
+            # though no tools are bound here, which Groq rejects with a 400. Retry once --
+            # it's model flakiness, not a deterministic failure.
+            for attempt in range(2):
+                try:
+                    result = llm.invoke(messages)
+                    break
+                except Exception:
+                    if attempt == 1:
+                        raise
 
         response_text = result.content
 

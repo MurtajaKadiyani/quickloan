@@ -9,10 +9,15 @@ from pathlib import Path
 # Model settings (provided -- no changes needed)
 # ---------------------------------------------------------------------------
 
-MODEL_NAME  = "llama-3.3-70b-versatile"
+MODEL_NAME  = "openai/gpt-oss-20b"  # confirmed Groq-compatible tool-call output (see tools.py llm_with_tools)
 TEMPERATURE = 0.3
-MAX_TOKENS  = 300  # raised from 300 -- once query_rate/query_eligibility tool results
+MAX_TOKENS  = 600  # raised from 300 -- once query_rate/query_eligibility tool results
                     # (US-04) get folded into a reply, 300 truncates mid-answer
+
+# classifier only ever needs to emit one bare word (SIMPLE/COMPLEX/OUT_OF_SCOPE) -- no
+# tool calls involved, so it stays on a plain non-reasoning model. gpt-oss-20b's reasoning
+# output breaks classify()'s exact-match parse and silently defaults every query to SIMPLE.
+CLASSIFIER_MODEL_NAME  = "llama-3.3-70b-versatile"
 CLASSIFIER_TEMPERATURE = 0.0
 CLASSIFIER_MAX_TOKENS  = 10
 
@@ -70,18 +75,26 @@ CLASSIFY_SYSTEM_PROMPT = """You are a query classifier for QuickLoan, the FastFi
 Classify the customer's query into exactly one category:
 
 SIMPLE       : A direct factual question about a specific loan product, interest rate, tenure, eligibility criteria,
-               required documents, or the general application process.
+               required documents, or the general application process -- including a rate or eligibility lookup
+               conditioned on a single stated figure (e.g. a CIBIL score), since that is still a direct database
+               lookup, not a judgment call.
                Examples: "What is the interest rate for a home loan?", "What documents do I need for a personal loan?",
-               "What is the maximum tenure for a business loan?", "How does gold loan work?"
+               "What is the maximum tenure for a business loan?", "How does gold loan work?",
+               "What rate will I get on a personal loan if my CIBIL score is 760?",
+               "What is the home loan rate for a CIBIL score of 730?"
 
-COMPLEX      : A question requiring personalised eligibility assessment, comparison across loan products,
-               EMI calculation for a specific case, or financial advice tailored to the customer's situation.
+COMPLEX      : A question requiring personalised eligibility assessment across MULTIPLE factors (income, goals,
+               existing loans, life situation), comparison across loan products, EMI calculation for a specific case,
+               or financial advice tailored to the customer's situation. If the answer is a single database lookup
+               by one input value, it is SIMPLE, not COMPLEX.
                Examples: "Which loan is best for me?", "Can I get a home loan on Rs. 60,000 salary?",
                "Should I take a personal loan or use my savings?", "What EMI will I pay for Rs. 10 lakh over 3 years?"
 
-OUT_OF_SCOPE : A request unrelated to FastFinance India loan products and services.
+OUT_OF_SCOPE : A request whose TASK is unrelated to FastFinance India loan products and services -- judge by what
+               the customer is asking you to DO, not by whether loan-related words appear in the sentence.
                Examples: "Write me a poem", "What is the stock market doing?",
-               "Compare FastFinance with HDFC Bank"
+               "Compare FastFinance with HDFC Bank", "Translate this sentence into Hindi: I want a home loan"
+               (a translation request, even one mentioning a loan, is still OUT_OF_SCOPE)
 
 Reply with exactly one word: SIMPLE, COMPLEX, or OUT_OF_SCOPE. No explanation."""
 
