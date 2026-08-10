@@ -17,7 +17,7 @@ MAX_TOKENS  = 600  # raised from 300 -- once query_rate/query_eligibility tool r
 # classifier only ever needs to emit one bare word (SIMPLE/COMPLEX/OUT_OF_SCOPE) -- no
 # tool calls involved, so it stays on a plain non-reasoning model. gpt-oss-20b's reasoning
 # output breaks classify()'s exact-match parse and silently defaults every query to SIMPLE.
-CLASSIFIER_MODEL_NAME  = "llama-3.3-70b-versatile"
+CLASSIFIER_MODEL_NAME  = "llama-3.1-8b-instant"
 CLASSIFIER_TEMPERATURE = 0.0
 CLASSIFIER_MAX_TOKENS  = 10
 

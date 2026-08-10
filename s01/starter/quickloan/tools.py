@@ -7,13 +7,13 @@ Session 5 (PRD US-04): adds query_rate(), query_eligibility(), and calculate_emi
 so the agent looks up live data instead of relying on hardcoded rates in the prompt.
 """
 import os
-import sqlite3
 
 from langchain_core.tools import tool
 from langchain_groq import ChatGroq
 
+from . import db_queries
 from .config import (
-    CLASSIFIER_MAX_TOKENS, CLASSIFIER_MODEL_NAME, CLASSIFIER_TEMPERATURE, DB_PATH,
+    CLASSIFIER_MAX_TOKENS, CLASSIFIER_MODEL_NAME, CLASSIFIER_TEMPERATURE,
     MAX_TOKENS, MODEL_NAME, TEMPERATURE,
 )
 
@@ -56,30 +56,7 @@ def query_rates(product_id: str = "all") -> str:
 
     Returns formatted rate information as a plain-text string.
     """
-    conn  = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-    lines = []
-
-    if product_id.lower() == "all":
-        rows = conn.execute(
-            "SELECT lp.product_name, rs.min_cibil, rs.max_cibil, rs.annual_rate_pct "
-            "FROM rate_slabs rs JOIN loan_products lp ON rs.product_id = lp.product_id "
-            "ORDER BY lp.product_name, rs.min_cibil DESC"
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT lp.product_name, rs.min_cibil, rs.max_cibil, rs.annual_rate_pct "
-            "FROM rate_slabs rs JOIN loan_products lp ON rs.product_id = lp.product_id "
-            "WHERE rs.product_id = ? "
-            "ORDER BY rs.min_cibil DESC",
-            (product_id,),
-        ).fetchall()
-
-    conn.close()
-
-    for name, min_cibil, max_cibil, rate in rows:
-        lines.append(f"{name}: {rate:.2f}% p.a. (CIBIL {min_cibil}-{max_cibil})")
-
-    return "\n".join(lines) if lines else f"No rate data found for product: '{product_id}'."
+    return db_queries.query_rates(product_id)
 
 
 @tool
@@ -96,42 +73,25 @@ def query_eligibility(product_id: str = "all") -> str:
 
     Returns formatted eligibility information as a plain-text string.
     """
-    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+    return db_queries.query_eligibility(product_id)
 
-    if product_id.lower() == "all":
-        rows = conn.execute(
-            "SELECT lp.product_name, er.min_cibil, er.min_monthly_income, "
-            "er.min_age, er.max_age, er.employment_types "
-            "FROM eligibility_rules er JOIN loan_products lp ON er.product_id = lp.product_id "
-            "ORDER BY lp.product_name"
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT lp.product_name, er.min_cibil, er.min_monthly_income, "
-            "er.min_age, er.max_age, er.employment_types "
-            "FROM eligibility_rules er JOIN loan_products lp ON er.product_id = lp.product_id "
-            "WHERE er.product_id = ? "
-            "ORDER BY lp.product_name",
-            (product_id,),
-        ).fetchall()
 
-    conn.close()
+@tool
+def query_branch(city: str = "all") -> str:
+    """Fetch FastFinance India branch contact details from the database.
 
-    if not rows:
-        return f"No eligibility data found for product: '{product_id}'."
+    Args:
+        city: Filter branches by city name, e.g. "Pune", "Mumbai", "Bengaluru".
+              Use "all" for every branch (default).
 
-    parts = []
-    for name, min_cibil, min_income, min_age, max_age, emp_types in rows:
-        parts.append(
-            f"{name}\n"
-            f"  Min CIBIL: {min_cibil} | Min income: Rs. {min_income}/mo | "
-            f"Age: {min_age}-{max_age} | {emp_types}"
-        )
-    return "\n\n".join(parts)
+    Returns branch address, phone, and email as a plain-text string.
+    """
+    return db_queries.query_branch(city)
 
 TOOLS = [
     query_rates,
-    query_eligibility
+    query_eligibility,
+    query_branch,
 ]
 llm_with_tools = llm.bind_tools(TOOLS)
 
