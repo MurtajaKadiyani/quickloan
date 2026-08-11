@@ -1,95 +1,73 @@
 """
 quickloan/agent.py
 ------------------
-Graph construction and the terminal loop.
+Builds and runs the QuickLoan LangGraph agent.
 
-Run the agent from the session folder:
-    cd s01/
-    python -m quickloan.agent
+Session 8: tools.py now uses MultiServerMCPClient to discover query_rates and
+query_eligibility from the Session 7 MCP server. Graph structure is unchanged
+from Session 5.
 
-Session 1 graph:
-    START --> respond --> END
+Run with:
+    python -m quickloan.agent   (from inside s08/solution/)
 """
-import sqlite3
-
-from langgraph.graph import END, StateGraph
-from uuid import uuid4
 import os
+import sqlite3
+from uuid import uuid4
 
-from quickloan.config import CHECKPOINT_DB, ESCALATE_RESPONSE
 from langgraph.checkpoint.sqlite import SqliteSaver
-from langgraph.checkpoint.memory import MemorySaver
-from quickloan.nodes import classify, decline, escalate, respond, retrieve_docs, route_query
-from quickloan.state import QuickLoanState
+from langgraph.graph import END, StateGraph
 
-# ---------------------------------------------------------------------------
-# TODO 5 of 5 -- build_graph
-# ---------------------------------------------------------------------------
-# Implement build_graph() so it:
-#
-#   1. Creates a StateGraph:
-#        builder = StateGraph(QuickLoanState)
-#
-#   2. Registers the respond node:
-#        builder.add_node("respond", respond)
-#
-#   3. Sets the entry point (first node to run):
-#        builder.set_entry_point("respond")
-#
-#   4. Connects respond → END (the graph exits after one response):
-#        builder.add_edge("respond", END)
-#
-#   5. Compiles and returns the graph:
-#        return builder.compile()
-#
-# ---------------------------------------------------------------------------
+from .config import CHECKPOINT_DB, MCP_SERVER_PATH
+from .nodes import classify, decline, escalate, respond, retrieve_docs, route_query
+from .state import QuickLoanState
 
-def build_graph(checkpointer = None):
-    # START -> Classify -> based on route_query decide next node to be executed.
+
+def build_graph(checkpointer=None):
     builder = StateGraph(QuickLoanState)
-    builder.add_node("classify", classify)
-    builder.add_node("decline", decline)
-    builder.add_node("escalate", escalate)
-    builder.add_node("respond", respond)
-    builder.add_node("retrieve_docs", retrieve_docs)
 
-    builder.set_entry_point("classify") #START
+    builder.add_node("classify",      classify)
+    builder.add_node("retrieve_docs", retrieve_docs)
+    builder.add_node("respond",       respond)
+    builder.add_node("escalate",      escalate)
+    builder.add_node("decline",       decline)
+
+    builder.set_entry_point("classify")
     builder.add_conditional_edges("classify", route_query, {
         "retrieve_docs": "retrieve_docs",
-        "escalate": "escalate",
-        "decline": "decline"
+        "escalate":      "escalate",
+        "decline":       "decline",
     })
+
     builder.add_edge("retrieve_docs", "respond")
-    builder.add_edge("respond", END)
-    builder.add_edge("escalate", END)
-    builder.add_edge("decline", END)
-    #if checkpointer is None:
-    #    checkpointer = MemorySaver()
+    builder.add_edge("respond",       END)
+    builder.add_edge("escalate",      END)
+    builder.add_edge("decline",       END)
+
     return builder.compile(checkpointer=checkpointer)
 
-# Module-level graph instance required by langgraph.json for LangGraph Studio.
-# run() uses this directly rather than building a second copy.
+
 graph = build_graph()
 
 
-# ---------------------------------------------------------------------------
-# Terminal loop (provided -- no changes needed)
-# ---------------------------------------------------------------------------
-
 def run() -> None:
-    conn = sqlite3.connect(str(CHECKPOINT_DB), check_same_thread=False)
-    _graph    = build_graph(checkpointer=SqliteSaver(conn))  # terminal app opts into disk persistence explicit
+    conn      = sqlite3.connect(str(CHECKPOINT_DB), check_same_thread=False)
+    _graph    = build_graph(checkpointer=SqliteSaver(conn))
     thread_id = str(uuid4())
     config    = {"configurable": {"thread_id": thread_id}}
+
+    if not MCP_SERVER_PATH.exists():
+        print(f"[QuickLoan] WARNING: MCP server not found at {MCP_SERVER_PATH}")
+        print("  Complete Session 7 first.")
+
     print("=" * 55)
     print("  QuickLoan | FastFinance India")
+    print("  Tools: MCP server (query_rates, query_eligibility)")
     print("  Type 'quit' to exit")
     print("=" * 55)
-    print(f"  Session: {thread_id[:8]}...")  # sanity check -- confirms config actually reached graph.invoke()
-
-    if os.getenv("LANGSMITH_TRACING", "").lower() == "true": # type: ignore
-        project = os.getenv("LANGSMITH_PROJECT", "batch1-quickloan") # type: ignore
-        print(f"  Tracing : LangSmith ({project})")
+    print(f"  Session: {thread_id[:8]}...")
+    if os.getenv("LANGSMITH_TRACING", "").lower() == "true":
+        project = os.getenv("LANGSMITH_PROJECT", "batch1-quickloan")
+        print(f"  Tracing: LangSmith ({project})")
     print("=" * 55)
 
     while True:
@@ -104,20 +82,21 @@ def run() -> None:
         if user_input.lower() in {"quit", "exit", "bye"}:
             print("\nQuickLoan: Thank you for choosing FastFinance India. Goodbye!")
             break
-        
-        # "response": "" is a placeholder to satisfy the TypedDict contract.
-        # respond() overwrites it; graph.invoke() returns the full merged state.
-        result = _graph.invoke({"customer_message": user_input, "response": ""},config=config) # type: ignore
+
+        result = _graph.invoke(
+            {"customer_message": user_input, "response": ""}, # type: ignore
+            config=config, # type: ignore
+        )
         route = result.get("query_type", "?")
-        docs = result.get("retrieved_docs", [])
-        response = result["response"]
-        print(f"\n[Routed: {route}]")
-        if docs and response != ESCALATE_RESPONSE:
+        docs  = result.get("retrieved_docs", [])
+        print(f"\n[Routed: {route}]", end="")
+        if docs:
             sources = {d.split("]\n")[0].lstrip("[") for d in docs if "]\n" in d}
             print(f"  [Retrieved {len(docs)} chunk(s) from: {', '.join(sorted(sources))}]")
         else:
             print()
         print(f"\nQuickLoan: {result['response']}")
+
 
 if __name__ == "__main__":
     run()

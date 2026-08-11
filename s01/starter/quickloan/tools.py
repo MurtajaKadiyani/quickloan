@@ -1,106 +1,116 @@
 """
 quickloan/tools.py
 ------------------
-LLM clients and database tool functions for QuickLoan.
+STARTER FILE -- your task is to implement the three TODO sections below.
 
-Session 5 (PRD US-04): adds query_rate(), query_eligibility(), and calculate_emi()
-so the agent looks up live data instead of relying on hardcoded rates in the prompt.
+Goal
+  Connect the QuickLoan agent to the MCP server built in Session 7
+  (s07/solution/mcp_server.py) using langchain-mcp-adapters instead of
+  hand-written @tool functions. The graph and agent code are unchanged
+  from Session 5 -- only how query_rates/query_eligibility are sourced changes.
+
+What is already done for you
+  - LLM clients (llm, classifier_llm) are created below
+  - MCP_SERVER_PATH points to the Session 7 server
+  - _extract_text() and _run_tool()'s docstring/signature are provided
+
+Your task
+  TODO 1: Create a MultiServerMCPClient pointing at the Session 7 server
+  TODO 2: Load its tools (async, bridged with asyncio.run) and bind them to llm
+  TODO 3: Implement _run_tool() to dispatch a call by name and extract the
+          plain-text result from the MCP content-block list
+
+Run when done
+  python -m quickloan.agent   (from inside s08/starter/)
 """
-import os
+import asyncio
+import sys
 
-from langchain_core.tools import tool
 from langchain_groq import ChatGroq
+from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from . import db_queries
 from .config import (
-    CLASSIFIER_MAX_TOKENS, CLASSIFIER_MODEL_NAME, CLASSIFIER_TEMPERATURE,
-    MAX_TOKENS, MODEL_NAME, TEMPERATURE,
+    GROQ_API_KEY, MAX_TOKENS, MCP_SERVER_PATH, MODEL_NAME, TEMPERATURE,
 )
-
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-if not GROQ_API_KEY:
-    raise ValueError(
-        "GROQ_API_KEY not found.\n"
-        "Did you copy .env.example to .env and fill in your key?\n"
-        "  Windows:  copy .env.example .env\n"
-        "  Mac/Linux: cp .env.example .env"
-    )
 
 llm = ChatGroq(
     api_key=GROQ_API_KEY, # type: ignore
-    model=MODEL_NAME, # type: ignore
+    model=MODEL_NAME,
     temperature=TEMPERATURE,
     max_tokens=MAX_TOKENS,
-    max_retries=6,  # openai/gpt-oss-20b sits on an 8000 TPM free-tier cap -- back off and retry through 429s
 )
 
 classifier_llm = ChatGroq(
     api_key=GROQ_API_KEY, # type: ignore
-    model=CLASSIFIER_MODEL_NAME,
-    temperature=CLASSIFIER_TEMPERATURE,
-    max_tokens=CLASSIFIER_MAX_TOKENS,
-    max_retries=6,
+    model=MODEL_NAME,
+    temperature=0.0,
+    max_tokens=10,
 )
 
-@tool
-def query_rates(product_id: str = "all") -> str:
-    """Fetch current FastFinance India interest rates from the database.
 
-    Args:
-        product_id: Which loan rates to return. Options:
-            "personal_loan" -- personal loan rate slabs by CIBIL score
-            "home_loan"     -- home loan rate slabs by CIBIL score
-            "business_loan" -- business loan rate slabs by CIBIL score
-            "gold_loan"     -- gold loan flat rate
-            "all"           -- all products (default)
-
-    Returns formatted rate information as a plain-text string.
-    """
-    return db_queries.query_rates(product_id)
-
-
-@tool
-def query_eligibility(product_id: str = "all") -> str:
-    """Fetch FastFinance India loan eligibility criteria from the database.
-
-    Args:
-        product_id: Which loan eligibility to return. Options:
-            "personal_loan" -- personal loan eligibility rules
-            "home_loan"     -- home loan eligibility rules
-            "business_loan" -- business loan eligibility rules
-            "gold_loan"     -- gold loan eligibility rules
-            "all"           -- all products (default)
-
-    Returns formatted eligibility information as a plain-text string.
-    """
-    return db_queries.query_eligibility(product_id)
+# ---------------------------------------------------------------------------
+# TODO 1 of 3 -- Create the MultiServerMCPClient
+# ---------------------------------------------------------------------------
+#   _mcp_client = MultiServerMCPClient({
+#       "quickloan": {
+#           "transport": "stdio",
+#           "command": sys.executable,
+#           "args": [str(MCP_SERVER_PATH)],
+#       }
+#   })
+# ---------------------------------------------------------------------------
+_mcp_client = MultiServerMCPClient({
+    "quickloan": {
+        "transport": "stdio",
+        "command": sys.executable,
+        # mcp_server.py uses "from . import db_queries" -- it only resolves that
+        # relative import when launched as a package module (-m quickloan.mcp_server),
+        # not as a bare script path, so run it that way with cwd set to the package's
+        # parent directory (s01/starter).
+        "args": ["-m", "quickloan.mcp_server"],
+        "cwd": str(MCP_SERVER_PATH.parent.parent),
+    }
+})
 
 
-@tool
-def query_branch(city: str = "all") -> str:
-    """Fetch FastFinance India branch contact details from the database.
-
-    Args:
-        city: Filter branches by city name, e.g. "Pune", "Mumbai", "Bengaluru".
-              Use "all" for every branch (default).
-
-    Returns branch address, phone, and email as a plain-text string.
-    """
-    return db_queries.query_branch(city)
-
-TOOLS = [
-    query_rates,
-    query_eligibility,
-    query_branch,
-]
-llm_with_tools = llm.bind_tools(TOOLS)
+# ---------------------------------------------------------------------------
+# TODO 2 of 3 -- Load the server's tools and bind them to the LLM
+# ---------------------------------------------------------------------------
+#   mcp_tools      = asyncio.run(_mcp_client.get_tools())
+#   _tool_registry = {t.name: t for t in mcp_tools}
+#   llm_with_tools = llm.bind_tools(mcp_tools)
+# ---------------------------------------------------------------------------
+mcp_tools      = asyncio.run(_mcp_client.get_tools())
+_tool_registry = {t.name: t for t in mcp_tools}
+llm_with_tools = llm.bind_tools(mcp_tools)
 
 
+def _extract_text(result) -> str:
+    """MCP tool results come back as a list of content blocks. Provided -- no changes needed."""
+    if isinstance(result, list):
+        return "\n".join(
+            block.get("text", "") for block in result if isinstance(block, dict)
+        )
+    return str(result)
+
+
+# ---------------------------------------------------------------------------
+# TODO 3 of 3 -- Implement _run_tool()
+# ---------------------------------------------------------------------------
+#   def _run_tool(tool_name: str, tool_args: dict) -> str:
+#       if tool_name not in _tool_registry:
+#           return f"Unknown tool: {tool_name}"
+#       try:
+#           result = asyncio.run(_tool_registry[tool_name].ainvoke(tool_args))
+#           return _extract_text(result)
+#       except Exception as e:
+#           return f"Tool error ({tool_name}): {e}"
+# ---------------------------------------------------------------------------
 def _run_tool(tool_name: str, tool_args: dict) -> str:
-    _registry = {t.name: t for t in TOOLS}
-    if tool_name not in _registry:
+    if tool_name not in _tool_registry:
         return f"Unknown tool: {tool_name}"
     try:
-         return _registry[tool_name].invoke(tool_args)
+        result = asyncio.run(_tool_registry[tool_name].ainvoke(tool_args))
+        return _extract_text(result)
     except Exception as e:
         return f"Tool error ({tool_name}): {e}"

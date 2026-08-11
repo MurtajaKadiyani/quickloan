@@ -1,3 +1,12 @@
+"""
+quickloan/nodes.py
+------------------
+Graph nodes and routing for QuickLoan.
+
+Session 8: identical to Session 5. No changes needed here -- the MCP
+integration is entirely in tools.py (query_rates and query_eligibility now
+call the MCP server instead of SQLite directly).
+"""
 from langchain_chroma import Chroma
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -7,7 +16,7 @@ from .config import (
     EMBED_MODEL, RETRIEVAL_K, SYSTEM_PROMPT, VECTORSTORE_DIR,
 )
 from .state import QuickLoanState
-from .tools import classifier_llm, llm, llm_with_tools, _run_tool
+from .tools import _run_tool, classifier_llm, llm, llm_with_tools
 
 vectorstore = None
 
@@ -67,7 +76,7 @@ def respond(state: QuickLoanState) -> dict:
         context_block  = "\n\n---\n\n".join(retrieved)
         system_content = (
             SYSTEM_PROMPT
-            + "\n\nThe following sections from FastFinance India's policy documents are relevant "
+            + "\n\nThe following sections from FastFinance's policy documents are relevant "
               "to the customer's question. Use this information in your answer:\n\n"
             + context_block
         )
@@ -89,21 +98,14 @@ def respond(state: QuickLoanState) -> dict:
             messages.append(result) # type: ignore
             for tc in result.tool_calls:
                 tool_output = _run_tool(tc["name"], tc["args"])
-                print(f"[QuickLoan] Tool: {tc['name']}({tc['args']}) -> {str(tool_output)[:80]}")
+                print(
+                    f"[QuickLoan] MCP tool: {tc['name']}({tc['args']}) "
+                    f"-> {str(tool_output)[:80]}"
+                )
                 messages.append(ToolMessage(content=str(tool_output), tool_call_id=tc["id"])) # type: ignore
+            result = llm.invoke(messages)
 
-            # gpt-oss-20b occasionally hallucinates a tool call on this synthesis step even
-            # though no tools are bound here, which Groq rejects with a 400. Retry once --
-            # it's model flakiness, not a deterministic failure.
-            for attempt in range(2):
-                try:
-                    result = llm.invoke(messages)
-                    break
-                except Exception:
-                    if attempt == 1:
-                        raise
-
-        response_text = result.content
+        response_text = result.content # type: ignore
 
     except Exception as e:
         print(f"[QuickLoan] LLM error: {e}")
