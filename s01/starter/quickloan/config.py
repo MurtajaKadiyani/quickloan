@@ -139,3 +139,22 @@ RETRIEVAL_K     = 3
 # 0.3 sits cleanly between noise (< 0.20) and real matches (> 0.40).
 # Raise toward 0.5 only if you observe low-quality chunks sneaking into answers.
 RETRIEVAL_SCORE_THRESHOLD = 0.3
+
+QUICKLOAN_BANNED_PHRASES = [
+    "guaranteed approval",
+    "loan is approved",
+    "approval guaranteed",
+    "pre-approved",
+    "100% approved",
+    "definitely approved",
+    "no credit check",
+]
+
+SAFE_COMPLIANCE_RESPONSE = (
+    "FastFinance India offers competitive interest rates that vary based on your credit "
+    "profile and loan type. All loan offers are subject to formal eligibility verification "
+    "including a credit bureau check.\n\n"
+    "Please call us on 1800-456-7890 (toll-free, Monday to Saturday, 9 AM to 6 PM) "
+    "for a personalised assessment.\n\n"
+    "QuickLoan | FastFinance India"
+)

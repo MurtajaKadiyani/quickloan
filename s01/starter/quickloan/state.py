@@ -29,6 +29,7 @@ class QuickLoanState(TypedDict):
    history: list[dict]
    query_type: str
    retrieved_docs:   list[str]
+   compliance_status: str
 
 
 # Guard: raises at import time if the fields haven't been defined yet.
