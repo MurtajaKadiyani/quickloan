@@ -73,6 +73,30 @@ def query_eligibility(product_id: str = "all") -> str:
 
 
 # ---------------------------------------------------------------------------
+# query_loan_product -- delegates to db_queries.py (shared with tools.py)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def query_loan_product(product_id: str = "all") -> str:
+    """Fetch FastFinance India loan product terms from the database.
+
+    Covers min/max tenure, max loan amount, and processing fee -- terms that
+    query_rates and query_eligibility don't return.
+
+    Args:
+        product_id: Which loan's terms to return. Options:
+            "personal_loan" -- personal loan terms
+            "home_loan"     -- home loan terms
+            "business_loan" -- business loan terms
+            "gold_loan"     -- gold loan terms
+            "all"           -- all products (default)
+
+    Returns formatted product terms as a plain-text string.
+    """
+    return db_queries.query_loan_product(product_id)
+
+
+# ---------------------------------------------------------------------------
 # query_branch -- delegates to db_queries.py (shared with tools.py)
 # ---------------------------------------------------------------------------
 

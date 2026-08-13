@@ -100,6 +100,55 @@ def query_eligibility(product_id: str = "all") -> str:
     return "\n\n".join(parts)
 
 
+def query_loan_product(product_id: str = "all") -> str:
+    """Fetch FastFinance India loan product terms from the database.
+
+    Covers the terms that live only in loan_products -- not rate_slabs
+    (query_rates) or eligibility_rules (query_eligibility): min/max tenure,
+    max loan amount, and processing fee.
+
+    Args:
+        product_id: Which loan's terms to return. Options:
+            "personal_loan" -- personal loan terms
+            "home_loan"     -- home loan terms
+            "business_loan" -- business loan terms
+            "gold_loan"     -- gold loan terms
+            "all"           -- all products (default)
+
+    Returns formatted product terms as a plain-text string.
+    """
+    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+
+    if product_id.lower() == "all":
+        rows = conn.execute(
+            "SELECT product_name, min_tenure_months, max_tenure_months, "
+            "max_loan_amount, processing_fee_pct FROM loan_products "
+            "ORDER BY product_name"
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT product_name, min_tenure_months, max_tenure_months, "
+            "max_loan_amount, processing_fee_pct FROM loan_products "
+            "WHERE product_id = ? ORDER BY product_name",
+            (product_id,),
+        ).fetchall()
+
+    conn.close()
+
+    if not rows:
+        return f"No product data found for product: '{product_id}'."
+
+    parts = []
+    for name, min_tenure, max_tenure, max_amount, fee_pct in rows:
+        parts.append(
+            f"{name}\n"
+            f"  Tenure: {min_tenure}-{max_tenure} months | "
+            f"Max loan amount: Rs. {max_amount:,} | "
+            f"Processing fee: {fee_pct}%"
+        )
+    return "\n\n".join(parts)
+
+
 def query_branch(city: str = "all") -> str:
     """Fetch FastFinance India branch contact details from the database.
 

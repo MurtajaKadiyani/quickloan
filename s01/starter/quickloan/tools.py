@@ -30,6 +30,7 @@ from langchain_groq import ChatGroq
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from .config import (
+    CLASSIFIER_MAX_TOKENS, CLASSIFIER_MODEL_NAME, CLASSIFIER_TEMPERATURE,
     GROQ_API_KEY, MAX_TOKENS, MCP_SERVER_PATH, MODEL_NAME, TEMPERATURE,
 )
 
@@ -38,13 +39,21 @@ llm = ChatGroq(
     model=MODEL_NAME,
     temperature=TEMPERATURE,
     max_tokens=MAX_TOKENS,
+    # gpt-oss-20b shares an 8000 TPM org-wide budget; the default max_retries=2
+    # backs off too briefly to clear a near-full window during a burst of calls
+    # (e.g. evaluate.py running 40 questions back-to-back), so 429s were
+    # surfacing as user-visible "temporarily unavailable" failures.
+    max_retries=6,
 )
 
+# Must stay on a separate, smaller model (llama-3.1-8b-instant) from the agent
+# LLM -- gpt-oss-20b's reasoning-style output breaks classify()'s exact-match
+# parse in nodes.py and silently defaults every query to SIMPLE. See config.py.
 classifier_llm = ChatGroq(
     api_key=GROQ_API_KEY, # type: ignore
-    model=MODEL_NAME,
-    temperature=0.0,
-    max_tokens=10,
+    model=CLASSIFIER_MODEL_NAME,
+    temperature=CLASSIFIER_TEMPERATURE,
+    max_tokens=CLASSIFIER_MAX_TOKENS,
 )
 
 
