@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip show *)",
+      "Bash(curl -s --retry 10 --retry-delay 2 --retry-connrefused http://127.0.0.1:2024/ok)",
+      "Bash(curl -s -X POST http://127.0.0.1:2024/runs/wait -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(python3 -c ' *)",
+      "Bash(tasklist)",
+      "Bash(taskkill //F //IM python.exe)",
+      "Bash(PYTHONUNBUFFERED=1 PYTHONUTF8=1 python -m langgraph_cli dev --no-browser --port 2024 --no-reload)",
+      "Bash(curl -s --retry 25 --retry-delay 1 --retry-connrefused --retry-all-errors http://127.0.0.1:2024/ok)",
+      "Read(//c/Python314/Lib/site-packages/langgraph_runtime_inmem/**)",
+      "Read(//c/Python314/Lib/site-packages/langchain_mcp_adapters/**)"
+    ]
+  }
+}

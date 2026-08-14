@@ -1,0 +1,182 @@
+[08/14/26 17:54:58] INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+Running evaluation on 40 questions...
+------------------------------------------------------------
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|##########| 103/103 [00:00<00:00, 6778.38it/s]
+[08/14/26 17:55:25] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+[08/14/26 17:55:26] INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:55:32] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:55:37] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:55:41] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:55:51] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:56:09] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:56:27] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:56:48] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:57:09] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:57:28] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:57:52] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:58:10] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:58:28] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:58:44] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:59:01] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:59:34] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 17:59:45] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 18:00:07] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[08/14/26 18:00:29] INFO     Processing request of type           server.py:727
+                             CallToolRequest                                   
+                    INFO     Processing request of type           server.py:727
+                             ListToolsRequest                                  
+[QuickLoan] MCP tool: query_rates({'product_id': 'personal_loan'}) -> Personal Loan: 11.50% p.a. (CIBIL 750-900)
+Personal Loan: 13.00% p.a. (CIBIL 720
+  [PASS] S01: What is the personal loan interest rate at FastFinance India
+[QuickLoan] MCP tool: query_rates({'product_id': 'home_loan'}) -> Home Loan: 8.75% p.a. (CIBIL 750-900)
+Home Loan: 9.50% p.a. (CIBIL 720-749)
+  [PASS] S02: What is the home loan interest rate at FastFinance?
+[QuickLoan] MCP tool: query_rates({'product_id': 'business_loan'}) -> Business Loan: 14.00% p.a. (CIBIL 750-900)
+Business Loan: 16.50% p.a. (CIBIL 700
+  [PASS] S03: What interest rate does FastFinance charge for a business lo
+[QuickLoan] MCP tool: query_rates({'product_id': 'gold_loan'}) -> Gold Loan: 10.50% p.a. (CIBIL 0-900)
+  [PASS] S04: What is the gold loan interest rate at FastFinance India?
+[QuickLoan] MCP tool: query_rates({'product_id': 'personal_loan'}) -> Personal Loan: 11.50% p.a. (CIBIL 750-900)
+Personal Loan: 13.00% p.a. (CIBIL 720
+  [PASS] S05: What rate will I get on a personal loan if my CIBIL score is
+[QuickLoan] MCP tool: query_rates({'product_id': 'home_loan'}) -> Home Loan: 8.75% p.a. (CIBIL 750-900)
+Home Loan: 9.50% p.a. (CIBIL 720-749)
+  [PASS] S06: What is the home loan rate for a CIBIL score of 730?
+[QuickLoan] MCP tool: query_eligibility({'product_id': 'personal_loan'}) -> Personal Loan
+  Min CIBIL: 700 | Min income: Rs. 25000/mo | Age: 23-58 | salarie
+  [PASS] S07: What is the minimum CIBIL score required for a personal loan
+[QuickLoan] MCP tool: query_eligibility({'product_id': 'home_loan'}) -> Home Loan
+  Min CIBIL: 720 | Min income: Rs. 40000/mo | Age: 23-65 | salaried/se
+  [PASS] S08: What is the minimum income required for a home loan at FastF
+[QuickLoan] MCP tool: query_eligibility({'product_id': 'business_loan'}) -> Business Loan
+  Min CIBIL: 700 | Min income: Rs. 50000/mo | Age: 25-65 | self-em
+  [PASS] S09: What age do I need to be to apply for a business loan?
+[QuickLoan] MCP tool: query_eligibility({'product_id': 'gold_loan'}) -> Gold Loan
+  Min CIBIL: 0 | Min income: Rs. 10000/mo | Age: 18-75 | salaried/self
+  [PASS] S10: Can a retired person apply for a gold loan at FastFinance?
+[QuickLoan] MCP tool: query_eligibility({'product_id': 'home_loan'}) -> Home Loan
+  Min CIBIL: 720 | Min income: Rs. 40000/mo | Age: 23-65 | salaried/se
+  [PASS] S11: What is the minimum CIBIL score needed for a home loan?
+[QuickLoan] MCP tool: query_loan_product({'product_id': 'personal_loan'}) -> Personal Loan
+  Tenure: 12-60 months | Max loan amount: Rs. 500,000 | Processing
+  [PASS] S12: What is the maximum loan amount I can get for a personal loa
+[QuickLoan] MCP tool: query_loan_product({'product_id': 'home_loan'}) -> Home Loan
+  Tenure: 60-360 months | Max loan amount: Rs. 10,000,000 | Processing
+  [PASS] S13: What is the maximum tenure for a home loan at FastFinance?
+[QuickLoan] MCP tool: query_loan_product({'product_id': 'business_loan'}) -> Business Loan
+  Tenure: 12-84 months | Max loan amount: Rs. 2,500,000 | Processi
+  [PASS] S14: What is the processing fee for a business loan?
+[QuickLoan] MCP tool: query_loan_product({'product_id': 'gold_loan'}) -> Gold Loan
+  Tenure: 3-24 months | Max loan amount: Rs. 1,500,000 | Processing fe
+  [FAIL] S15: What is the maximum gold loan amount FastFinance offers?
+  [PASS] S16: What documents do I need to apply for a personal loan?
+[QuickLoan] MCP tool: query_rates({'product_id': 'home_loan'}) -> Home Loan: 8.75% p.a. (CIBIL 750-900)
+Home Loan: 9.50% p.a. (CIBIL 720-749)
+[QuickLoan] MCP tool: query_eligibility({'product_id': 'home_loan'}) -> Home Loan
+  Min CIBIL: 720 | Min income: Rs. 40000/mo | Age: 23-65 | salaried/se
+  [PASS] S17: How do I apply for a home loan at FastFinance India?
+[QuickLoan] MCP tool: query_loan_product({'product_id': 'personal_loan'}) -> Personal Loan
+  Tenure: 12-60 months | Max loan amount: Rs. 500,000 | Processing
+  [PASS] S18: Does FastFinance India offer prepayment on personal loans?
+[QuickLoan] MCP tool: query_loan_product({'product_id': 'gold_loan'}) -> Gold Loan
+  Tenure: 3-24 months | Max loan amount: Rs. 1,500,000 | Processing fe
+  [PASS] S19: What is the minimum tenure for a gold loan?
+  [PASS] S20: What employment types are eligible for a business loan at Fa
+  [PASS] C01: I earn Rs. 55,000 a month and want a home loan of Rs. 40 lak
+  [PASS] C02: Should I take a personal loan or a business loan for my star
+  [PASS] C03: What EMI will I pay for a personal loan of Rs. 3 lakh over 3
+  [PASS] C04: My CIBIL score is 680. What loan options do I have at FastFi
+  [PASS] C05: Which is better for me — a home loan or renting? I earn Rs. 
+  [PASS] C06: I want to prepay my home loan. How much will I save in inter
+  [PASS] C07: Compare all loan products and tell me which gives the best d
+  [PASS] C08: I have a gold loan and a personal loan at FastFinance. Which
+  [PASS] C09: I am 62 years old and self-employed. Can I get a home loan f
+  [PASS] C10: How much home loan can I get on a salary of Rs. 80,000 per m
+  [PASS] O01: Write me a poem about buying a house.
+  [PASS] O02: What is the stock market doing today?
+  [PASS] O03: Compare FastFinance India loans with HDFC Bank loans.
+  [PASS] O04: Can you help me file my income tax return?
+  [PASS] O05: What is the weather in Mumbai today?
+  [PASS] O06: Recommend a good mutual fund to invest in.
+  [PASS] O07: What is Repo Rate and how does RBI set it?
+  [PASS] O08: Translate this sentence into Hindi: I want a home loan.
+  [PASS] O09: What are the best credit cards in India right now?
+  [PASS] O10: Can you book a hotel room for me in Pune?
+
+============================================================
+  QuickLoan Baseline Evaluation Report
+============================================================
+  Total questions : 40
+  Passed          : 39
+  Failed          : 1
+  Pass rate       : 98%
+  Avg SIMPLE score: 4.8 / 5
+
+  By category:
+    complex         [##########] 10/10 (100%)
+    eligibility     [#####] 5/5 (100%)
+    loan_policy     [#####] 5/5 (100%)
+    loan_products   [###-] 3/4 (75%)
+    loan_rates      [######] 6/6 (100%)
+    oos             [##########] 10/10 (100%)
+
+  Failed items (1):
+    S15: (route=SIMPLE, score=2) What is the maximum gold loan amount FastFinance offers
+         The response does not cover the required points, specifically the number 15, and instead provides a detailed explanation of the gold loan process and calculation.
+============================================================

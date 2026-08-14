@@ -1,22 +1,22 @@
 """
 quickloan/agent.py
 ------------------
-STARTER FILE -- your task is to wire check_compliance into the graph (TODO 3).
+STARTER FILE -- complete the TODOs in nodes.py first, then wire the graph here.
 
-Goal
-  Route the graph through the new check_compliance node so every LLM response
-  is filtered for RBI compliance before being returned to the customer.
+Session 10: Supervisor + Specialist Agent architecture.
+  - Supervisor classifies into RATES / POLICY / COMPLEX / OUT_OF_SCOPE
+  - Rates Agent   uses MCP tools (query_rates, query_eligibility)
+  - Policy Agent  uses RAG (vectorstore) -- no live DB access
 
-What is already done for you
-  - All node imports (including check_compliance) are present
-  - The graph structure from Session 8 is intact
-  - The run() function prints compliance_status alongside the route info
-
-Your task
-  TODO 3: Add the check_compliance node and re-wire respond → check_compliance → END
+What to implement (after completing nodes.py TODOs 1-3):
+  The build_graph() function below needs you to:
+  1. Add all five nodes to builder (classify, call_policy_agent, call_rates_agent, escalate, decline)
+  2. Set the entry point to "classify"
+  3. Add conditional edges from "classify" using route_supervisor with the explicit path map
+  4. Add terminal edges from each specialist node to END
 
 Run when done
-  python -m quickloan.agent   (from inside s09/starter/)
+  python -m quickloan.agent   (from inside s10/starter/)
 """
 import os
 import sqlite3
@@ -27,13 +27,12 @@ from langgraph.graph import END, StateGraph
 
 from .config import CHECKPOINT_DB, MCP_SERVER_PATH
 from .nodes import (
-    check_compliance,
+    call_policy_agent,
+    call_rates_agent,
     classify,
     decline,
     escalate,
-    respond,
-    retrieve_docs,
-    route_query,
+    route_supervisor,
 )
 from .state import QuickLoanState
 
@@ -41,25 +40,24 @@ from .state import QuickLoanState
 def build_graph(checkpointer=None):
     builder = StateGraph(QuickLoanState)
 
-    builder.add_node("classify",      classify)
-    builder.add_node("retrieve_docs", retrieve_docs)
-    builder.add_node("respond",       respond)
-    builder.add_node("escalate",      escalate)
-    builder.add_node("decline",       decline)
-    builder.add_node("check_compliance", check_compliance)  # TODO 1: add node
+    builder.add_node("classify",          classify)
+    builder.add_node("call_policy_agent [subgraph]", call_policy_agent)
+    builder.add_node("call_rates_agent [subgraph]",  call_rates_agent)
+    builder.add_node("escalate",          escalate)
+    builder.add_node("decline",           decline)
 
     builder.set_entry_point("classify")
-    builder.add_conditional_edges("classify", route_query, {
-        "retrieve_docs": "retrieve_docs",
-        "escalate":      "escalate",
-        "decline":       "decline",
+    builder.add_conditional_edges("classify", route_supervisor, {
+        "call_policy_agent": "call_policy_agent [subgraph]",
+        "call_rates_agent":  "call_rates_agent [subgraph]",
+        "escalate":          "escalate",
+        "decline":           "decline",
     })
 
-    builder.add_edge("retrieve_docs", "respond")
-    builder.add_edge("respond",          "check_compliance")  # TODO 2: respond -> check_compliance
-    builder.add_edge("check_compliance", END)                 # TODO 3: check_compliance -> END
-    builder.add_edge("escalate",         END)
-    builder.add_edge("decline",          END)
+    builder.add_edge("call_policy_agent [subgraph]", END)
+    builder.add_edge("call_rates_agent [subgraph]",  END)
+    builder.add_edge("escalate",          END)
+    builder.add_edge("decline",           END)
 
     return builder.compile(checkpointer=checkpointer)
 
@@ -69,7 +67,7 @@ graph = build_graph()
 
 def run() -> None:
     conn      = sqlite3.connect(str(CHECKPOINT_DB), check_same_thread=False)
-    _graph    = build_graph(checkpointer=SqliteSaver(conn))
+    g         = build_graph(checkpointer=SqliteSaver(conn))
     thread_id = str(uuid4())
     config    = {"configurable": {"thread_id": thread_id}}
 
@@ -82,9 +80,8 @@ def run() -> None:
 
     print("=" * 60)
     print("  QuickLoan | FastFinance India")
-    print("  Compliance: RBI phrase filter + rate verification")
-    print(f"  Tracing   : {'LangSmith (' + project + ')' if tracing_on else 'off (set LANGSMITH_API_KEY to enable)'}")
-    print("  Tools: MCP server (query_rates, query_eligibility)")
+    print("  Architecture: Supervisor + Rates Agent + Policy Agent")
+    print(f"  Tracing: {'LangSmith (' + project + ')' if tracing_on else 'off'}")
     print("  Type 'quit' to exit")
     print("=" * 60)
     print(f"  Session: {thread_id[:8]}...")
@@ -103,20 +100,18 @@ def run() -> None:
             print("\nQuickLoan: Thank you for choosing FastFinance India. Goodbye!")
             break
 
-        result = _graph.invoke(
-            {"customer_message": user_input, "response": "", "compliance_status": ""}, # type: ignore
+        result = g.invoke(
+            {"customer_message": user_input, "response": "",
+             "specialist": "", "retrieved_docs": []}, # type: ignore
             config=config, # type: ignore
         )
-        route      = result.get("query_type", "?")
-        compliance = result.get("compliance_status", "")
+        specialist = result.get("specialist", "?")
         docs       = result.get("retrieved_docs", [])
 
-        print(f"\n[Routed: {route}]", end="")
+        print(f"\n[Route: {result.get('query_type','?')} → {specialist}]", end="")
         if docs:
             sources = {d.split("]\n")[0].lstrip("[") for d in docs if "]\n" in d}
             print(f"  [RAG: {len(docs)} chunk(s) from {', '.join(sorted(sources))}]", end="")
-        if compliance:
-            print(f"  [Compliance: {compliance}]", end="")
         print()
         print(f"\nQuickLoan: {result['response']}")
 
