@@ -29,12 +29,19 @@ TEMPERATURE = 0.3
 MAX_TOKENS  = 600  # raised from 300 -- once query_rate/query_eligibility tool results
                     # (US-04) get folded into a reply, 300 truncates mid-answer
 
-# classifier only ever needs to emit one bare word (SIMPLE/COMPLEX/OUT_OF_SCOPE) -- no
-# tool calls involved, so it stays on a plain non-reasoning model. gpt-oss-20b's reasoning
-# output breaks classify()'s exact-match parse and silently defaults every query to SIMPLE.
-CLASSIFIER_MODEL_NAME  = "llama-3.1-8b-instant"
+# classifier only ever needs to emit one bare word (RATES/POLICY/COMPLEX/OUT_OF_SCOPE).
+# Was llama-3.1-8b-instant (a plain non-reasoning model, kept deliberately off gpt-oss-20b
+# because its reasoning-style output broke classify()'s exact-match parse) -- Groq retired
+# that model org-wide on 2026-08-16 with no non-reasoning small model left in its production
+# tier, so the classifier now shares gpt-oss-20b with the agent LLM too. tools.py sets
+# reasoning_format="hidden" on this ChatGroq instance so .content is still just the bare
+# word, not chain-of-thought -- classify()'s exact-match parse keeps working unchanged.
+# MAX_TOKENS raised from 10 -- gpt-oss-20b's hidden reasoning tokens still count against
+# the completion budget even though they're stripped from .content, so 10 truncated before
+# any final word came out.
+CLASSIFIER_MODEL_NAME  = "openai/gpt-oss-20b"
 CLASSIFIER_TEMPERATURE = 0.0
-CLASSIFIER_MAX_TOKENS  = 10
+CLASSIFIER_MAX_TOKENS  = 200
 
 # ---------------------------------------------------------------------------
 # TODO 2 of 5 -- System prompt

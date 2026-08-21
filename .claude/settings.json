@@ -10,7 +10,14 @@
       "Bash(PYTHONUNBUFFERED=1 PYTHONUTF8=1 python -m langgraph_cli dev --no-browser --port 2024 --no-reload)",
       "Bash(curl -s --retry 25 --retry-delay 1 --retry-connrefused --retry-all-errors http://127.0.0.1:2024/ok)",
       "Read(//c/Python314/Lib/site-packages/langgraph_runtime_inmem/**)",
-      "Read(//c/Python314/Lib/site-packages/langchain_mcp_adapters/**)"
+      "Read(//c/Python314/Lib/site-packages/langchain_mcp_adapters/**)",
+      "Bash(python -m quickloan.mcp_server)",
+      "Bash(echo \"EXIT: $?\")",
+      "Read(//tmp/**)",
+      "Bash(python -m quickloan.agent)",
+      "Bash(cd \"e:/Applied AI Engineering/quickloan/s01/starter\" && cat /tmp/agent_err.txt)",
+      "WebSearch",
+      "WebFetch(domain:console.groq.com)"
     ]
   }
 }

@@ -27,6 +27,7 @@ from langgraph.graph import END, StateGraph
 
 from .config import CHECKPOINT_DB, MCP_SERVER_PATH
 from .nodes import (
+    call_compliance_agent,
     call_policy_agent,
     call_rates_agent,
     classify,
@@ -43,6 +44,7 @@ def build_graph(checkpointer=None):
     builder.add_node("classify",          classify)
     builder.add_node("call_policy_agent [subgraph]", call_policy_agent)
     builder.add_node("call_rates_agent [subgraph]",  call_rates_agent)
+    builder.add_node("call_compliance_agent [subgraph]", call_compliance_agent)
     builder.add_node("escalate",          escalate)
     builder.add_node("decline",           decline)
 
@@ -54,8 +56,9 @@ def build_graph(checkpointer=None):
         "decline":           "decline",
     })
 
-    builder.add_edge("call_policy_agent [subgraph]", END)
-    builder.add_edge("call_rates_agent [subgraph]",  END)
+    builder.add_edge("call_policy_agent [subgraph]", "call_compliance_agent [subgraph]")
+    builder.add_edge("call_rates_agent [subgraph]",  "call_compliance_agent [subgraph]")
+    builder.add_edge("call_compliance_agent [subgraph]", END)
     builder.add_edge("escalate",          END)
     builder.add_edge("decline",           END)
 

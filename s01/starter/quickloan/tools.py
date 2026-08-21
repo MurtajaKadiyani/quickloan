@@ -36,7 +36,7 @@ from .config import (
 
 llm = ChatGroq(
     api_key=GROQ_API_KEY, # type: ignore
-    model=MODEL_NAME,
+    model=MODEL_NAME, # type: ignore
     temperature=TEMPERATURE,
     max_tokens=MAX_TOKENS,
     # gpt-oss-20b shares an 8000 TPM org-wide budget; the default max_retries=2
@@ -46,14 +46,18 @@ llm = ChatGroq(
     max_retries=6,
 )
 
-# Must stay on a separate, smaller model (llama-3.1-8b-instant) from the agent
-# LLM -- gpt-oss-20b's reasoning-style output breaks classify()'s exact-match
-# parse in nodes.py and silently defaults every query to SIMPLE. See config.py.
+# Was a separate, smaller non-reasoning model (llama-3.1-8b-instant) so gpt-oss-20b's
+# reasoning-style output couldn't break classify()'s exact-match parse in nodes.py --
+# Groq retired that model on 2026-08-16 (see config.py), so this now shares gpt-oss-20b
+# with the agent LLM but pins reasoning_format="hidden" so .content still comes back as
+# just the bare classification word, not chain-of-thought text.
 classifier_llm = ChatGroq(
     api_key=GROQ_API_KEY, # type: ignore
     model=CLASSIFIER_MODEL_NAME,
     temperature=CLASSIFIER_TEMPERATURE,
     max_tokens=CLASSIFIER_MAX_TOKENS,
+    reasoning_format="hidden",
+    reasoning_effort="low",
 )
 
 
