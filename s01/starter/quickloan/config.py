@@ -26,8 +26,13 @@ if not GROQ_API_KEY:
 
 MODEL_NAME  = "openai/gpt-oss-20b"  # confirmed Groq-compatible tool-call output (see tools.py llm_with_tools)
 TEMPERATURE = 0.3
-MAX_TOKENS  = 600  # raised from 300 -- once query_rate/query_eligibility tool results
-                    # (US-04) get folded into a reply, 300 truncates mid-answer
+MAX_TOKENS  = 1200  # raised from 600 -- gpt-oss-20b's hidden reasoning tokens (see
+                     # CLASSIFIER_MAX_TOKENS comment below) count against this same
+                     # budget before any visible answer text is produced, and a broad
+                     # multi-product answer (e.g. "list all loan types and their
+                     # required documents") needs far more visible tokens than a
+                     # single-product answer -- 600 was truncating those responses
+                     # mid-sentence once reasoning + a long answer combined exceeded it.
 
 # classifier only ever needs to emit one bare word (RATES/POLICY/COMPLEX/OUT_OF_SCOPE).
 # Was llama-3.1-8b-instant (a plain non-reasoning model, kept deliberately off gpt-oss-20b
@@ -168,7 +173,13 @@ DB_PATH         = DATA_DIR / "fastfinance_data.db"  # seeded via data/seed.py; u
 CHECKPOINT_DB   = DATA_DIR / "checkpoints.db"
 VECTORSTORE_DIR = DATA_DIR / "vectorstore"
 EMBED_MODEL     = "all-MiniLM-L6-v2"
-RETRIEVAL_K     = 3
+RETRIEVAL_K     = 6  # raised from 3 -- at k=3, a query spanning all 4 loan-type guides
+                      # (e.g. "list all loan types and their required documents") could
+                      # easily miss one guide's chunk entirely since retrieval is shared
+                      # across all 6 documents (4 guides + faq + policy), not per-product.
+                      # 6 gives room for one relevant chunk per guide on a broad query
+                      # while still being small enough that a narrow single-product
+                      # question isn't diluted with irrelevant chunks.
 # Minimum cosine relevance score (0–1) for a retrieved chunk to be used.
 #
 # The vectorstore is built with cosine distance (collection_metadata={"hnsw:space":"cosine"}

@@ -24,6 +24,7 @@ Run when done
 """
 import re
 import sqlite3
+from typing import Callable, Optional
 
 from langchain_chroma import Chroma
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -47,6 +48,17 @@ from .config import (
 from .state import QuickLoanState
 from .tools import _run_tool, classifier_llm, llm, llm_with_tools
 
+# ---------------------------------------------------------------------------
+# S13: Token streaming hook
+#
+# Set by app.py to a callable before graph.invoke() when the Streamlit UI
+# wants to display tokens as they arrive (see app.py's _StreamingState).
+# None (the default) means silent -- used by the terminal REPL
+# (agent.py:run()) and anywhere else that just wants the final text.
+# Only _generate_response_text() below reads this.
+# ---------------------------------------------------------------------------
+_stream_callback: Optional[Callable[[str], None]] = None
+
 vectorstore = None
 
 
@@ -63,6 +75,27 @@ def _init_vectorstore() -> None:
     except Exception as e:
         print(f"[QuickLoan] Could not load vectorstore: {e}")
         print("  Run 'python data/ingest.py' to create it.")
+
+
+def _generate_response_text(messages: list) -> str:
+    """Call `llm` (no tools bound) for a customer-facing reply.
+
+    Streams tokens one at a time via _stream_callback when the Streamlit UI
+    has set one, producing a typewriter effect; otherwise blocks on a plain
+    invoke() and returns the full text (terminal REPL, tests). Never call
+    this with tools bound -- tool-call detection needs the full structured
+    response, not a token stream, so callers must resolve tool calls via
+    llm_with_tools.invoke() first and only reach here for the tool-less
+    synthesis step.
+    """
+    if _stream_callback is not None:
+        response_text = ""
+        for chunk in llm.stream(messages):
+            if chunk.content:
+                response_text += chunk.content # type: ignore
+                _stream_callback(chunk.content) # type: ignore
+        return response_text
+    return llm.invoke(messages).content # type: ignore
 
 
 # ---------------------------------------------------------------------------
@@ -110,8 +143,7 @@ def _policy_respond(state: QuickLoanState) -> dict:
     messages.append(HumanMessage(content=state["customer_message"]))  # type: ignore
 
     try:
-        result        = llm.invoke(messages)
-        response_text = result.content
+        response_text = _generate_response_text(messages)
     except Exception as e:
         print(f"[QuickLoan] Policy Agent LLM error: {e}")
         response_text = "I am temporarily unavailable. Please try again in a moment."
@@ -158,19 +190,28 @@ def _rates_respond(state: QuickLoanState) -> dict:
             result = llm_with_tools.invoke(messages)
             rounds += 1
 
-        if result.tool_calls:
-            # Still wants more tools after MAX_TOOL_ROUNDS -- force a final
-            # tool-less synthesis from what's been gathered so far. gpt-oss-20b
-            # occasionally hallucinates a spurious tool call here anyway (no
-            # tools are bound on `llm`), which Groq rejects with a 400, so
-            # retry once before giving up.
+        if rounds == 0:
+            # No tool was ever called -- the initial llm_with_tools.invoke()
+            # above already produced the final answer, so use it directly.
+            # (Not streamed: catching a streamed response's tool_calls would
+            # mean reconstructing them from partial chunks, which is why
+            # _generate_response_text() is only ever called tool-less below.)
+            response_text = result.content
+        else:
+            # At least one tool round ran (or the round budget ran out with
+            # tools still pending) -- synthesize the customer-facing reply as
+            # an explicit tool-less call so it can be streamed. This costs one
+            # extra LLM call versus reusing the last llm_with_tools result even
+            # when it already had no more tool_calls, but keeps streaming and
+            # structured tool-call detection from ever mixing. gpt-oss-20b
+            # occasionally hallucinates a spurious tool call on this step
+            # anyway (no tools are bound on `llm`), which Groq rejects with a
+            # 400, so retry once before giving up.
             try:
-                result = llm.invoke(messages)
+                response_text = _generate_response_text(messages)
             except Exception as e:
                 print(f"[QuickLoan] Rates Agent synthesis call failed, retrying once: {e}")
-                result = llm.invoke(messages)
-
-        response_text = result.content
+                response_text = _generate_response_text(messages)
 
     except Exception as e:
         print(f"[QuickLoan] Rates Agent LLM error: {e}")
@@ -420,12 +461,13 @@ def classify(state: QuickLoanState) -> dict:
 def call_policy_agent(state: QuickLoanState) -> dict:
     print("[QuickLoan] Supervisor → Policy Agent")
     result = _policy_agent.invoke({
-        "customer_message": state["customer_message"],
-        "history":          state.get("history", []),
-        "response":         "",
-        "query_type":       state.get("query_type", "POLICY"),
-        "retrieved_docs":   [],
-        "specialist":       "",
+        "customer_message":  state["customer_message"],
+        "history":           state.get("history", []),
+        "response":          "",
+        "query_type":        state.get("query_type", "POLICY"),
+        "retrieved_docs":    [],
+        "specialist":        "",
+        "compliance_status": "",
     })  # type: ignore
     return {
         "response":       result["response"],
@@ -438,12 +480,13 @@ def call_policy_agent(state: QuickLoanState) -> dict:
 def call_rates_agent(state: QuickLoanState) -> dict:
     print("[QuickLoan] Supervisor → Rates Agent")
     result = _rates_agent.invoke({
-        "customer_message": state["customer_message"],
-        "history":          state.get("history", []),
-        "response":         "",
-        "query_type":       state.get("query_type", "RATES"),
-        "retrieved_docs":   [],
-        "specialist":       "",
+        "customer_message":  state["customer_message"],
+        "history":           state.get("history", []),
+        "response":          "",
+        "query_type":        state.get("query_type", "RATES"),
+        "retrieved_docs":    [],
+        "specialist":        "",
+        "compliance_status": "",
     })  # type: ignore
     return {
         "response":   result["response"],
