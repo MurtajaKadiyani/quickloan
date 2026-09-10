@@ -5,7 +5,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_rates",
     "criteria": ["11.5", "Personal Loan"],
-    "must_not_contain": ["HDFC", "SBI", "I cannot", "I don't know"]
+    "must_not_contain": ["HDFC", "SBI", "I cannot help", "I don't know"]
   },
   {
     "id": "S02",
@@ -13,7 +13,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_rates",
     "criteria": ["8.75", "Home Loan"],
-    "must_not_contain": ["HDFC", "SBI", "I cannot"]
+    "must_not_contain": ["HDFC", "SBI", "I cannot help"]
   },
   {
     "id": "S03",
@@ -21,7 +21,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_rates",
     "criteria": ["14.0", "Business Loan"],
-    "must_not_contain": ["HDFC", "SBI", "I cannot"]
+    "must_not_contain": ["HDFC", "SBI", "I cannot help"]
   },
   {
     "id": "S04",
@@ -29,7 +29,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_rates",
     "criteria": ["10.5", "Gold Loan"],
-    "must_not_contain": ["HDFC", "SBI", "I cannot"]
+    "must_not_contain": ["HDFC", "SBI", "I cannot help"]
   },
   {
     "id": "S05",
@@ -37,7 +37,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_rates",
     "criteria": ["11.5", "Personal Loan"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "S06",
@@ -45,7 +45,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_rates",
     "criteria": ["9.5", "Home Loan"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "S07",
@@ -53,7 +53,7 @@
     "expected_route": "SIMPLE",
     "category": "eligibility",
     "criteria": ["700", "Personal Loan"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "S08",
@@ -61,7 +61,7 @@
     "expected_route": "SIMPLE",
     "category": "eligibility",
     "criteria": ["40,000", "Home Loan"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "S09",
@@ -69,7 +69,7 @@
     "expected_route": "SIMPLE",
     "category": "eligibility",
     "criteria": ["25", "Business Loan"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "S10",
@@ -77,7 +77,7 @@
     "expected_route": "SIMPLE",
     "category": "eligibility",
     "criteria": ["Gold Loan", "retired"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "S11",
@@ -85,7 +85,7 @@
     "expected_route": "SIMPLE",
     "category": "eligibility",
     "criteria": ["720", "Home Loan"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "S12",
@@ -93,7 +93,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_products",
     "criteria": ["Personal Loan", "5"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "S13",
@@ -101,7 +101,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_products",
     "criteria": ["Home Loan", "30"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "S14",
@@ -109,7 +109,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_products",
     "criteria": ["Business Loan", "2.5"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "S15",
@@ -117,7 +117,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_products",
     "criteria": ["Gold Loan", "15"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "S16",
@@ -125,7 +125,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_policy",
     "criteria": ["Personal Loan", "income"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "S17",
@@ -133,7 +133,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_policy",
     "criteria": ["Home Loan", "FastFinance"],
-    "must_not_contain": ["HDFC", "SBI", "I cannot"]
+    "must_not_contain": ["HDFC", "SBI", "I cannot help"]
   },
   {
     "id": "S18",
@@ -141,7 +141,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_policy",
     "criteria": ["Personal Loan", "FastFinance"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "S19",
@@ -149,7 +149,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_policy",
     "criteria": ["Gold Loan", "3"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "S20",
@@ -157,7 +157,7 @@
     "expected_route": "SIMPLE",
     "category": "loan_policy",
     "criteria": ["Business Loan", "self-employed"],
-    "must_not_contain": ["I cannot", "I don't know"]
+    "must_not_contain": ["I cannot help", "I don't know"]
   },
   {
     "id": "C01",

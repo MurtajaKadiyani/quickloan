@@ -90,7 +90,7 @@ FastFinance India has branches in Pune (Aundh), Mumbai (Lower Parel), and Bengal
 ---
 
 **Can I repay my gold loan early?**
-Yes. Gold loans can be closed at any time by repaying the outstanding principal and accrued interest. There is no minimum tenure requirement for gold loans -- you can close the loan the next day if you wish, and your gold is released immediately upon full payment. Early closure charges do not apply to gold loans.
+Yes. Gold loans can be closed at any time by repaying the outstanding principal and accrued interest, and your gold is released immediately upon full payment. Early closure charges do not apply to gold loans -- you will never be penalised for repaying before the end of your chosen tenure. Note this is separate from the minimum tenure a gold loan can be sanctioned for (3 months) -- early closure just means you are free to repay before that sanctioned term ends without a penalty.
 
 ---
 

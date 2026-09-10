@@ -1,27 +1,12 @@
 """
 quickloan/tools.py
 ------------------
-STARTER FILE -- your task is to implement the three TODO sections below.
+LLM clients and MCP-backed tool loading for QuickLoan.
 
-Goal
-  Connect the QuickLoan agent to the MCP server built in Session 7
-  (s07/solution/mcp_server.py) using langchain-mcp-adapters instead of
-  hand-written @tool functions. The graph and agent code are unchanged
-  from Session 5 -- only how query_rates/query_eligibility are sourced changes.
-
-What is already done for you
-  - LLM clients (llm, classifier_llm) are created below
-  - MCP_SERVER_PATH points to the Session 7 server
-  - _extract_text() and _run_tool()'s docstring/signature are provided
-
-Your task
-  TODO 1: Create a MultiServerMCPClient pointing at the Session 7 server
-  TODO 2: Load its tools (async, bridged with asyncio.run) and bind them to llm
-  TODO 3: Implement _run_tool() to dispatch a call by name and extract the
-          plain-text result from the MCP content-block list
-
-Run when done
-  python -m quickloan.agent   (from inside s08/starter/)
+Session 14: adds llamaguard_llm (Llama Prompt Guard 2 via Groq) and splits
+classifier_llm to use a dedicated low-latency model (CLASSIFIER_MODEL,
+groq/compound-mini) separate from the main LLM. MCP tool loading unchanged
+from Session 8 -- see the cwd/module-launch comment below.
 """
 import asyncio
 import sys
@@ -30,8 +15,9 @@ from langchain_groq import ChatGroq
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from .config import (
-    CLASSIFIER_MAX_TOKENS, CLASSIFIER_MODEL_NAME, CLASSIFIER_TEMPERATURE,
-    GROQ_API_KEY, MAX_TOKENS, MCP_SERVER_PATH, MODEL_NAME, TEMPERATURE,
+    CLASSIFIER_MAX_TOKENS, CLASSIFIER_MODEL, GROQ_API_KEY,
+    LLAMAGUARD_MAX_TOKENS, LLAMAGUARD_MODEL, MAX_TOKENS, MCP_SERVER_PATH,
+    MODEL_NAME, TEMPERATURE,
 )
 
 llm = ChatGroq(
@@ -39,38 +25,35 @@ llm = ChatGroq(
     model=MODEL_NAME, # type: ignore
     temperature=TEMPERATURE,
     max_tokens=MAX_TOKENS,
-    # gpt-oss-20b shares an 8000 TPM org-wide budget; the default max_retries=2
+    # gpt-oss-120b shares an org-wide TPM budget; the default max_retries=2
     # backs off too briefly to clear a near-full window during a burst of calls
     # (e.g. evaluate.py running 40 questions back-to-back), so 429s were
     # surfacing as user-visible "temporarily unavailable" failures.
     max_retries=6,
 )
 
-# Was a separate, smaller non-reasoning model (llama-3.1-8b-instant) so gpt-oss-20b's
-# reasoning-style output couldn't break classify()'s exact-match parse in nodes.py --
-# Groq retired that model on 2026-08-16 (see config.py), so this now shares gpt-oss-20b
-# with the agent LLM but pins reasoning_format="hidden" so .content still comes back as
-# just the bare classification word, not chain-of-thought text.
+# S14: classifier now runs on its own dedicated low-latency model
+# (CLASSIFIER_MODEL = groq/compound-mini) rather than sharing MODEL_NAME, so it
+# isn't a reasoning model -- no reasoning_format/reasoning_effort workaround needed.
 classifier_llm = ChatGroq(
     api_key=GROQ_API_KEY, # type: ignore
-    model=CLASSIFIER_MODEL_NAME,
-    temperature=CLASSIFIER_TEMPERATURE,
+    model=CLASSIFIER_MODEL,
+    temperature=0.0,
     max_tokens=CLASSIFIER_MAX_TOKENS,
-    reasoning_format="hidden",
-    reasoning_effort="low",
+)
+
+# S14: Llama Prompt Guard 2 -- Layer 2 of the input guard (see config.py).
+# Separate client so its settings don't bleed into the main LLM.
+llamaguard_llm = ChatGroq(
+    api_key=GROQ_API_KEY, # type: ignore
+    model=LLAMAGUARD_MODEL,
+    temperature=0.0,
+    max_tokens=LLAMAGUARD_MAX_TOKENS,
 )
 
 
 # ---------------------------------------------------------------------------
-# TODO 1 of 3 -- Create the MultiServerMCPClient
-# ---------------------------------------------------------------------------
-#   _mcp_client = MultiServerMCPClient({
-#       "quickloan": {
-#           "transport": "stdio",
-#           "command": sys.executable,
-#           "args": [str(MCP_SERVER_PATH)],
-#       }
-#   })
+# MCP tool loading (unchanged from Session 8)
 # ---------------------------------------------------------------------------
 _mcp_client = MultiServerMCPClient({
     "quickloan": {
@@ -86,13 +69,6 @@ _mcp_client = MultiServerMCPClient({
 })
 
 
-# ---------------------------------------------------------------------------
-# TODO 2 of 3 -- Load the server's tools and bind them to the LLM
-# ---------------------------------------------------------------------------
-#   mcp_tools      = asyncio.run(_mcp_client.get_tools())
-#   _tool_registry = {t.name: t for t in mcp_tools}
-#   llm_with_tools = llm.bind_tools(mcp_tools)
-# ---------------------------------------------------------------------------
 mcp_tools      = asyncio.run(_mcp_client.get_tools())
 _tool_registry = {t.name: t for t in mcp_tools}
 llm_with_tools = llm.bind_tools(mcp_tools)
@@ -107,18 +83,6 @@ def _extract_text(result) -> str:
     return str(result)
 
 
-# ---------------------------------------------------------------------------
-# TODO 3 of 3 -- Implement _run_tool()
-# ---------------------------------------------------------------------------
-#   def _run_tool(tool_name: str, tool_args: dict) -> str:
-#       if tool_name not in _tool_registry:
-#           return f"Unknown tool: {tool_name}"
-#       try:
-#           result = asyncio.run(_tool_registry[tool_name].ainvoke(tool_args))
-#           return _extract_text(result)
-#       except Exception as e:
-#           return f"Tool error ({tool_name}): {e}"
-# ---------------------------------------------------------------------------
 def _run_tool(tool_name: str, tool_args: dict) -> str:
     if tool_name not in _tool_registry:
         return f"Unknown tool: {tool_name}"

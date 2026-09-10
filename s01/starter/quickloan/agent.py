@@ -1,38 +1,50 @@
 """
 quickloan/agent.py
 ------------------
-STARTER FILE -- complete the TODOs in nodes.py first, then wire the graph here.
+Builds and runs the QuickLoan multi-agent LangGraph supervisor.
 
-Session 10: Supervisor + Specialist Agent architecture.
-  - Supervisor classifies into RATES / POLICY / COMPLEX / OUT_OF_SCOPE
-  - Rates Agent   uses MCP tools (query_rates, query_eligibility)
-  - Policy Agent  uses RAG (vectorstore) -- no live DB access
-
-What to implement (after completing nodes.py TODOs 1-3):
-  The build_graph() function below needs you to:
-  1. Add all five nodes to builder (classify, call_policy_agent, call_rates_agent, escalate, decline)
-  2. Set the entry point to "classify"
-  3. Add conditional edges from "classify" using route_supervisor with the explicit path map
-  4. Add terminal edges from each specialist node to END
-
-Run when done
-  python -m quickloan.agent   (from inside s10/starter/)
+Session 14: Security and Guardrails.
+  - Guard node is the new entry point -- runs before the Supervisor
+  - Blocks PII (Aadhaar/PAN), injection patterns (regex), and semantic
+    jailbreaks (Llama Prompt Guard 2 via Groq) before any LLM is called
+  - Supervisor classifies clean queries into RATES / POLICY / RATES+POLICY /
+    COMPLEX / OUT_OF_SCOPE
+  - Rates Agent    uses MCP tools (query_rates, query_eligibility)
+  - Policy Agent   uses RAG (vectorstore) -- no live DB access
+  - call_both_agents runs Rates + Policy concurrently for compound queries
+    (query_type == "RATES+POLICY", e.g. "home loan rates and required documents")
+  - Compliance Agent (sub-graph): check_rbi -> [revise | END]
 """
 import os
 import sqlite3
+import sys
 from uuid import uuid4
 
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, StateGraph
 
+# Windows' default console codepage (cp1252) can't encode characters an LLM
+# routinely emits (narrow no-break spaces in formatted numbers, em-dashes,
+# curly quotes, etc.), which crashes every print() in this REPL with a bare
+# UnicodeEncodeError the moment one shows up in a response. Force UTF-8 on
+# stdout/stderr regardless of the host codepage; errors="replace" means a
+# genuinely unencodable byte degrades to "?" instead of killing the process.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore
+
 from .config import CHECKPOINT_DB, MCP_SERVER_PATH
 from .nodes import (
+    blocked,
+    call_both_agents,
     call_compliance_agent,
     call_policy_agent,
     call_rates_agent,
     classify,
     decline,
     escalate,
+    guard,
+    route_guard,
     route_supervisor,
 )
 from .state import QuickLoanState
@@ -41,28 +53,40 @@ from .state import QuickLoanState
 def build_graph(checkpointer=None):
     builder = StateGraph(QuickLoanState)
 
-    builder.add_node("classify",          classify)
-    builder.add_node("call_policy_agent [subgraph]", call_policy_agent)
-    builder.add_node("call_rates_agent [subgraph]",  call_rates_agent)
-    builder.add_node("call_compliance_agent [subgraph]", call_compliance_agent)
-    builder.add_node("escalate",          escalate)
-    builder.add_node("decline",           decline)
+    # S14: guard is the new entry point -- runs before classifier, no LLM call.
+    builder.add_node("guard",                guard)
+    builder.add_node("blocked",              blocked)
+    builder.add_node("classify",             classify)
+    builder.add_node("call_policy_agent",    call_policy_agent)
+    builder.add_node("call_rates_agent",     call_rates_agent)
+    builder.add_node("call_both_agents",     call_both_agents)
+    builder.add_node("call_compliance_agent", call_compliance_agent)
+    builder.add_node("escalate",             escalate)
+    builder.add_node("decline",              decline)
 
-    builder.set_entry_point("classify")
+    builder.set_entry_point("guard")
+    builder.add_conditional_edges("guard", route_guard, {
+        "classify": "classify",
+        "blocked":  "blocked",
+    })
+    builder.add_edge("blocked", END)
+
     builder.add_conditional_edges("classify", route_supervisor, {
-        "call_policy_agent": "call_policy_agent [subgraph]",
-        "call_rates_agent":  "call_rates_agent [subgraph]",
+        "call_policy_agent": "call_policy_agent",
+        "call_rates_agent":  "call_rates_agent",
+        "call_both_agents":  "call_both_agents",
         "escalate":          "escalate",
         "decline":           "decline",
     })
 
-    builder.add_edge("call_policy_agent [subgraph]", "call_compliance_agent [subgraph]")
-    builder.add_edge("call_rates_agent [subgraph]",  "call_compliance_agent [subgraph]")
-    builder.add_edge("call_compliance_agent [subgraph]", END)
-    builder.add_edge("escalate",          END)
-    builder.add_edge("decline",           END)
+    builder.add_edge("call_policy_agent",     "call_compliance_agent")
+    builder.add_edge("call_rates_agent",      "call_compliance_agent")
+    builder.add_edge("call_both_agents",      "call_compliance_agent")
+    builder.add_edge("call_compliance_agent", END)
+    builder.add_edge("escalate",              END)
+    builder.add_edge("decline",               END)
 
-    return builder.compile(checkpointer=checkpointer)
+    return builder.compile(checkpointer=checkpointer)  # None = no checkpointer, Studio-safe
 
 
 graph = build_graph()
@@ -83,7 +107,7 @@ def run() -> None:
 
     print("=" * 60)
     print("  QuickLoan | FastFinance India")
-    print("  Architecture: Supervisor + Rates Agent + Policy Agent")
+    print("  Architecture: Guard -> Supervisor -> [Policy|Rates] -> Compliance")
     print(f"  Tracing: {'LangSmith (' + project + ')' if tracing_on else 'off'}")
     print("  Type 'quit' to exit")
     print("=" * 60)
@@ -104,18 +128,33 @@ def run() -> None:
             break
 
         result = g.invoke(
-            {"customer_message": user_input, "response": "",
-             "specialist": "", "retrieved_docs": []}, # type: ignore
-            config=config, # type: ignore
+            {
+                "customer_message":  user_input,
+                "response":          "",
+                "specialist":        "",
+                "retrieved_docs":    [],
+                "compliance_status": "",
+                "blocked_reason":    "",
+                "llamaguard_score":  -1.0,
+            },  # type: ignore
+            config=config,  # type: ignore
         )
+
         specialist = result.get("specialist", "?")
+        blocked_r  = result.get("blocked_reason", "")
+        compliance = result.get("compliance_status", "")
         docs       = result.get("retrieved_docs", [])
 
-        print(f"\n[Route: {result.get('query_type','?')} → {specialist}]", end="")
-        if docs:
-            sources = {d.split("]\n")[0].lstrip("[") for d in docs if "]\n" in d}
-            print(f"  [RAG: {len(docs)} chunk(s) from {', '.join(sorted(sources))}]", end="")
-        print()
+        if blocked_r:
+            print(f"\n[Guard: BLOCKED ({blocked_r})]")
+        else:
+            print(f"\n[Route: {result.get('query_type','?')} -> {specialist}]", end="")
+            if docs:
+                sources = {d.split("]\n")[0].lstrip("[") for d in docs if "]\n" in d}
+                print(f"  [RAG: {len(docs)} chunk(s) from {', '.join(sorted(sources))}]", end="")
+            if compliance:
+                print(f"  [Compliance: {compliance}]", end="")
+            print()
         print(f"\nQuickLoan: {result['response']}")
 
 

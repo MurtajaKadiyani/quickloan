@@ -9,33 +9,13 @@ Only define the shape here -- no logic.
 from typing import TypedDict
 
 
-# ---------------------------------------------------------------------------
-# TODO 3 of 5 -- State definition
-# ---------------------------------------------------------------------------
-# Define QuickLoanState as a TypedDict with exactly two fields:
-#
-#   customer_message : str   -- the question the customer typed
-#   response         : str   -- the answer QuickLoan will return
-#
-# Pattern:
-#   class QuickLoanState(TypedDict):
-#       field_name: type
-#
-# ---------------------------------------------------------------------------
-
 class QuickLoanState(TypedDict):
-   customer_message : str
-   response         : str
+   customer_message : str   # the question the customer typed
+   response         : str   # the answer QuickLoan will return
    history: list[dict]
    query_type: str
    retrieved_docs:   list[str]
    compliance_status: str
    specialist:       str
-
-
-# Guard: raises at import time if the fields haven't been defined yet.
-if "customer_message" not in QuickLoanState.__annotations__:
-    raise NotImplementedError(
-        "TODO 3: define 'customer_message: str' and 'response: str' "
-        "in QuickLoanState in quickloan/state.py"
-    )
+   blocked_reason:    str   # "" = clean; "pii", "injection", or "llamaguard" = blocked by guard
+   llamaguard_score: float  # Layer 2 injection probability (0.0-1.0); -1.0 if not reached

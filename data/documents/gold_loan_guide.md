@@ -19,6 +19,7 @@ RBI guidelines cap gold loan LTV at 75% of the gold's assessed value. This means
 
 - If your gold is valued at Rs. 1,00,000, the maximum loan amount FastFinance can offer is Rs. 75,000
 - FastFinance India's internal assessment is based on the prevailing gold rate at the time of pledging, applied to the net weight of pure gold content (after adjusting for alloy in the ornament)
+- Regardless of your gold's assessed value, the maximum Gold Loan amount FastFinance India can sanction is capped at Rs. 15,00,000 (Rs. 15 lakh)
 
 The gold rate used for valuation is the rate on the day of pledge -- not a historical rate.
 
