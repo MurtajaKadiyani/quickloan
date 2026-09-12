@@ -9,6 +9,7 @@ groq/compound-mini) separate from the main LLM. MCP tool loading unchanged
 from Session 8 -- see the cwd/module-launch comment below.
 """
 import asyncio
+import os
 import sys
 
 from langchain_groq import ChatGroq
@@ -65,6 +66,25 @@ _mcp_client = MultiServerMCPClient({
         # parent directory (s01/starter).
         "args": ["-m", "quickloan.mcp_server"],
         "cwd": str(MCP_SERVER_PATH.parent.parent),
+        # Without an explicit "env", the MCP SDK's stdio transport passes only
+        # an OS-dependent subset of the parent's environment to the spawned
+        # subprocess (not a full inherit) -- the docstring on
+        # langchain_mcp_adapters' _create_stdio_session() says as much: "the
+        # behavior varies by operating system." mcp_server.py imports
+        # db_queries -> config, and config.py's module-level GROQ_API_KEY
+        # check runs unconditionally on that import even though mcp_server.py
+        # itself never calls Groq -- so the subprocess needs GROQ_API_KEY
+        # (and LANGSMITH_* for tracing) purely to satisfy that shared check.
+        # This happened to work under every native Windows test in this repo's
+        # history (Windows' default subset apparently included enough), but
+        # reproducibly crashed the subprocess with "GROQ_API_KEY not found" in
+        # a Linux container (verified 2026-09-12) -- confirming the "varies by
+        # OS" behavior was silently relied on rather than guaranteed. Passing
+        # the full parent environment explicitly removes that OS-dependent
+        # fragility; mcp_server.py is first-party code in this same repo, not
+        # a third-party/untrusted MCP server, so there's no meaningful trust
+        # boundary being crossed by giving it what the parent process already has.
+        "env": dict(os.environ),
     }
 })
 

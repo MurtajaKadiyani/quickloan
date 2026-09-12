@@ -1,0 +1,62 @@
+QuickLoan - Docker commands reference
+Image name: quickloan
+Container name: quickloan-test
+Run all commands from the repo root (e:\Applied AI Engineering\quickloan), where the Dockerfile lives.
+
+===============================
+BUILD
+===============================
+docker build -t quickloan .
+
+(Re-run the same command after any code change. Docker reuses cached layers
+for anything unchanged, so most rebuilds are fast.)
+
+===============================
+CREATE & RUN A CONTAINER FROM THE IMAGE
+===============================
+docker run -d -p 8501:8501 --env-file .env --name quickloan-test quickloan
+
+  -d               run in background (detached)
+  -p 8501:8501     map container port 8501 to host port 8501
+  --env-file .env  load GROQ_API_KEY, LANGSMITH_* etc. from your local .env
+                   (never baked into the image itself)
+  --name           friendly container name instead of a random ID
+
+Foreground alternative (see logs directly in the terminal, Ctrl+C stops it):
+docker run -p 8501:8501 --env-file .env --name quickloan-test quickloan
+
+===============================
+LIST
+===============================
+docker images                                     - all images
+docker images quickloan                           - just this one
+docker ps                                         - running containers
+docker ps -a                                      - all containers, including stopped
+docker ps -a --filter "name=quickloan-test"       - just this one
+
+===============================
+INSPECT WHILE RUNNING
+===============================
+docker logs quickloan-test           - view logs
+docker logs -f quickloan-test        - follow logs live
+docker exec -it quickloan-test sh    - shell into the running container
+docker inspect quickloan-test        - full container metadata
+
+===============================
+STOP & REMOVE - CONTAINER
+===============================
+docker stop quickloan-test       - graceful stop
+docker rm quickloan-test         - remove (must be stopped first, or use -f)
+docker rm -f quickloan-test      - stop + remove in one shot
+
+===============================
+STOP & REMOVE - IMAGE
+===============================
+docker rmi quickloan             - remove the image (fails if a container still uses it)
+docker rmi -f quickloan          - force remove
+
+===============================
+ONE-SHOT CLEANUP FOR THIS PROJECT
+===============================
+docker rm -f quickloan-test
+docker rmi -f quickloan

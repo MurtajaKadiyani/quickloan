@@ -30,7 +30,7 @@ MODEL_NAME            = "openai/gpt-oss-120b"  # primary: higher daily token lim
 CLASSIFIER_MODEL      = "groq/compound-mini"
 CLASSIFIER_MAX_TOKENS = 10
 TEMPERATURE = 0.3
-MAX_TOKENS  = 300   # LLM06:2026 Unbounded Consumption -- caps per-call token spend
+MAX_TOKENS  = 1500  # LLM06:2026 Unbounded Consumption -- caps per-call token spend
 #
 # NOTE: this MODEL_NAME/CLASSIFIER_MODEL/MAX_TOKENS block was applied verbatim
 # from a pasted S14 reference snippet at the user's explicit request, in place
@@ -39,11 +39,17 @@ MAX_TOKENS  = 300   # LLM06:2026 Unbounded Consumption -- caps per-call token sp
 # tools.py has since been updated to import CLASSIFIER_MODEL (not the retired
 # CLASSIFIER_MODEL_NAME/CLASSIFIER_TEMPERATURE) and no longer needs the
 # reasoning_format="hidden" workaround, since compound-mini isn't a reasoning
-# model. One risk still stands: MAX_TOKENS was previously raised 600->1200
-# specifically because gpt-oss-20b's hidden reasoning tokens were truncating
-# broad answers (see git history) -- 300 is likely to reintroduce that
-# truncation now that MODEL_NAME defaults to gpt-oss-120b. Watch for
-# mid-sentence cutoffs on broad multi-product questions.
+# model. The flagged risk here materialized: MAX_TOKENS=300 reproducibly
+# truncated Policy Agent answers to near-empty output on gpt-oss-120b (e.g.
+# "How do I apply for a home loan at FastFinance India?" -- confirmed via
+# response_metadata: finish_reason="length", completion_tokens=300 of which
+# 298 were consumed by hidden reasoning tokens before any visible answer
+# text, verified 2026-09-12). Raised to 1500 (above the previously-tuned
+# 1200 for gpt-oss-20b) since gpt-oss-120b's hidden reasoning overhead is at
+# least as large. If you see truncation again, check
+# response_metadata["token_usage"]["completion_tokens_details"]["reasoning_tokens"]
+# on the *_respond()/_generate_response_text() call before assuming it's a
+# different bug.
 # ---------------------------------------------------------------------------
 
 # S14: Llama Prompt Guard 2 -- semantic injection classifier (Layer 2 of the input guard).

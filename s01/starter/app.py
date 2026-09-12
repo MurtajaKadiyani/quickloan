@@ -251,14 +251,25 @@ def _inject_live_search_filter(threads: dict) -> None:
     so "<" is additionally escaped to the unicode form -- the resulting text
     is only ever used for a JS .includes() substring check, never rendered
     as HTML or eval'd, so this one substitution is sufficient.
+
+    Title and message content are kept as separate fields (not one combined
+    string) so this script can also live-update the "(message match)" hint
+    -- _sidebar()'s Python-side _thread_match_is_title_only() only recomputes
+    that hint when search_query is committed (Enter/blur), so a purely
+    visual show/hide here left the hint frozen at whatever it was on the
+    last commit while the rows themselves already filtered live -- verified
+    2026-09-12: typing a message-only match with no Enter narrowed the list
+    correctly but never showed "(message match)" until Enter was pressed.
     """
     search_index = {
-        tid: " ".join([thread.get("title", "")] + [
-            msg.get("content", "") for msg in thread.get("messages", [])
-        ])
+        tid: {
+            "title": thread.get("title", ""),
+            "content": " ".join(msg.get("content", "") for msg in thread.get("messages", [])),
+        }
         for tid, thread in threads.items()
     }
     search_index_json = json.dumps(search_index).replace("<", "\\u003c")
+    match_suffix = "  (message match)"
 
     components.html(
         f"""
@@ -266,6 +277,7 @@ def _inject_live_search_filter(threads: dict) -> None:
             (function() {{
                 var doc = window.parent.document;
                 var index = {search_index_json};
+                var suffix = {json.dumps(match_suffix)};
                 var input = doc.querySelector('input[aria-label="🔍 Search conversations"]');
                 var noMatch = doc.getElementById('ql-no-match-msg');
                 if (!input) return;
@@ -278,9 +290,30 @@ def _inject_live_search_filter(threads: dict) -> None:
                         var btn = doc.querySelector('.st-key-thread_btn_' + tid);
                         var row = btn ? btn.closest('[data-testid="stHorizontalBlock"]') : null;
                         if (!row) continue;
-                        var matches = !q || index[tid].toLowerCase().indexOf(q) !== -1;
-                        row.style.display = matches ? '' : 'none';
-                        if (matches) anyVisible = true;
+
+                        var title = index[tid].title.toLowerCase();
+                        var content = index[tid].content.toLowerCase();
+                        var titleMatches = !q || title.indexOf(q) !== -1;
+                        var anyMatch = titleMatches || content.indexOf(q) !== -1;
+                        row.style.display = anyMatch ? '' : 'none';
+                        if (anyMatch) anyVisible = true;
+
+                        // Live-update the "(message match)" hint -- strip any
+                        // stale suffix (server-rendered from the last commit,
+                        // or added by an earlier keystroke) then re-add it
+                        // only when this row is showing purely because of a
+                        // message-content match, not the title.
+                        var labelBtn = btn.querySelector('button');
+                        if (labelBtn) {{
+                            var base = labelBtn.textContent.endsWith(suffix)
+                                ? labelBtn.textContent.slice(0, -suffix.length)
+                                : labelBtn.textContent;
+                            var needsSuffix = q && anyMatch && !titleMatches;
+                            var desired = needsSuffix ? base + suffix : base;
+                            if (labelBtn.textContent !== desired) {{
+                                labelBtn.textContent = desired;
+                            }}
+                        }}
                     }}
                     if (noMatch) {{
                         noMatch.style.display = (q && !anyVisible) ? 'block' : 'none';
@@ -435,9 +468,25 @@ def _sidebar() -> None:
 def _scroll_to_bottom() -> None:
     """Auto-scroll the page to the latest message.
 
-    Streamlit doesn't scroll the page on rerun -- if you've scrolled up to
-    reread an earlier turn and then ask a new question, the new answer
-    renders below the fold and you'd have to scroll down manually to see it.
+    Streamlit's own chat layout auto-follows the bottom already *while the
+    user is already there*, but does NOT force-scroll them back down if
+    they've scrolled up to reread an earlier turn -- verified live
+    (2026-09-12): scrollTop stayed pinned at 0 for the whole reply, leaving
+    the user ~650px above newly-arrived content with no indication anything
+    happened. That's the exact case this function exists for.
+
+    `section.main` (the original selector here) no longer exists in current
+    Streamlit versions -- confirmed via direct DOM inspection, the actual
+    scrollable element is now `[data-testid="stAppScrollToBottomContainer"]`
+    (a wrapper Streamlit itself added for native bottom-following). The old
+    selector silently fell through to the `|| doc.body` fallback, which
+    isn't the real scroll container either (body's scrollHeight reads 0
+    here), so this function has been a no-op for a while without erroring --
+    the app *looked* fine because Streamlit's own follow-when-already-at-
+    bottom behavior covered the common case, just not this one. Both
+    testids are still queried (old one first) in case a future Streamlit
+    version renames the container again; if neither matches, this quietly
+    does nothing rather than throwing, same as before.
 
     A <script> tag injected via st.markdown(unsafe_allow_html=True) never
     executes -- innerHTML-inserted <script> tags are inert in every browser.
@@ -449,7 +498,9 @@ def _scroll_to_bottom() -> None:
         """
         <script>
             var doc = window.parent.document;
-            var scroller = doc.querySelector('section.main') || doc.body;
+            var scroller = doc.querySelector('section.main')
+                || doc.querySelector('[data-testid="stAppScrollToBottomContainer"]')
+                || doc.body;
             scroller.scrollTo({top: scroller.scrollHeight, behavior: 'smooth'});
         </script>
         """,
