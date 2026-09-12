@@ -9,8 +9,9 @@
 #   docker build -t quickloan .
 #
 # Run:
-#   docker run -p 8501:8501 -e GROQ_API_KEY=gsk_... quickloan
-#   docker run -p 8501:8501 --env-file .env quickloan
+#   docker run -p 8501:80 -e GROQ_API_KEY=gsk_... quickloan
+#   docker run -p 8501:80 --env-file .env quickloan
+# (host:container -- container listens on 80 now; map it to any host port you like)
 #
 # Security: GROQ_API_KEY is passed at runtime only — never baked into the image.
 # Anyone who runs `docker history quickloan` would see a baked-in key.
@@ -78,8 +79,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# curl is needed at runtime for the HEALTHCHECK below. build-essential is
-# deliberately NOT installed here -- the wheels it built in stage 1 already
+# curl is needed at runtime for the HEALTHCHECK below. libcap2-bin provides
+# setcap, used just below to allow binding port 80 without root. build-essential
+# is deliberately NOT installed here -- the wheels it built in stage 1 already
 # work without the compiler that built them, so shipping the toolchain would
 # only add size and attack surface to the image customers actually run.
 #
@@ -89,8 +91,21 @@ WORKDIR /app
 # interactively, it only runs the one process.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    libcap2-bin \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --shell /usr/sbin/nologin appuser
+
+# Cloud platforms (Azure Container Instances, etc.) expose exactly the port
+# the app listens on -- there's no host:container remapping like `docker run
+# -p`. To serve on the plain default port 80 (no ":8501" in the URL) without
+# running the whole process as root, grant the python interpreter itself the
+# one Linux capability needed to bind ports below 1024. This is a file
+# capability (an xattr on the binary, survives the image layer), not a
+# process privilege -- appuser stays non-root for everything else. Docker's
+# (and ACI's) default container capability bounding set already includes
+# CAP_NET_BIND_SERVICE, so this Just Works without any extra --cap-add flag
+# at `docker run`/`az container create` time.
+RUN setcap 'cap_net_bind_service=+ep' "$(readlink -f "$(which python3)")"
 
 # Installed Python packages and the pre-downloaded embedding-model cache
 # from the builder stage, handed to the non-root user this container runs as.
@@ -145,15 +160,15 @@ COPY --chown=appuser:appuser s01/starter/quickloan/ s01/starter/quickloan/
 # from the repo root above.
 WORKDIR /app/s01/starter
 
-EXPOSE 8501
+EXPOSE 80
 
 # Cloud platforms (Render, Railway, Cloud Run) poll this endpoint to decide
 # when the container is ready to receive traffic.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+    CMD curl -f http://localhost:80/_stcore/health || exit 1
 
 CMD ["streamlit", "run", "app.py", \
-     "--server.port=8501", \
+     "--server.port=80", \
      "--server.address=0.0.0.0", \
      "--server.headless=true", \
      "--browser.gatherUsageStats=false"]
