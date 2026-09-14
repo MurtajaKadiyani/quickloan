@@ -709,6 +709,22 @@ def main() -> None:
                 if is_escalated(result):
                     placeholder.warning(response)
                 else:
+                    # Compound RATES+POLICY queries never stream live -- see
+                    # nodes.py's call_both_agents(), which deliberately sets
+                    # _stream_callback to None for the duration of its two
+                    # concurrent sub-agent calls (both share the module-level
+                    # `llm` client; two simultaneous llm.stream() reads on it
+                    # corrupt each other). That's the right call for the LLM
+                    # calls themselves, but it left the placeholder blank
+                    # through the whole generation and this file used to just
+                    # dump the finished text in with one instant markdown()
+                    # -- the "Typing speed" setting had no effect at all for
+                    # this one route. Fixed by replaying the now-complete
+                    # merged text through the same typewriter mechanism as a
+                    # single post-hoc pass: no llm.stream()/threads involved
+                    # here, so none of the concurrency risk above applies.
+                    if result.get("specialist") == "rates_agent+policy_agent":
+                        _StreamingState(placeholder, char_delay=char_delay)(response)
                     placeholder.markdown(response)
                 st.caption(route_label)
                 thread["messages"].append({"role": "assistant", "content": response})
