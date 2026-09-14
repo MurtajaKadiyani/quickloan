@@ -167,8 +167,24 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
     CMD curl -f http://localhost:80/_stcore/health || exit 1
 
+# enableCORS/enableXsrfProtection=false: this container sits behind Azure Front
+# Door, whose public hostname (*.azurefd.net) differs from the origin hostname
+# Front Door forwards as the Host header. Streamlit's WebSocket handler rejects
+# any connection where the browser's Origin doesn't match its own idea of Host
+# (anti cross-site-WebSocket-hijacking protection) -- verified live via
+# container logs: "Rejecting WebSocket connection with disallowed Origin or
+# Host header: origin=https://<front-door-domain>, host=<aci-domain>". Setting
+# the origin's Host header to match Front Door's own domain was tried first but
+# depends on AFD edge propagation (observed 10+ minutes, unpredictable); these
+# two flags fix it at the Streamlit level instead, unconditionally, with no
+# dependency on what the proxy forwards. Trade-off: relaxes Streamlit's default
+# CORS/XSRF protections -- acceptable here since ACI is already reachable
+# directly over plain HTTP regardless, and this is a demo/course deployment,
+# not one handling real customer transactions.
 CMD ["streamlit", "run", "app.py", \
      "--server.port=80", \
      "--server.address=0.0.0.0", \
      "--server.headless=true", \
+     "--server.enableCORS=false", \
+     "--server.enableXsrfProtection=false", \
      "--browser.gatherUsageStats=false"]
