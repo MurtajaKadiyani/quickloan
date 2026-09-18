@@ -359,9 +359,25 @@ def _sidebar() -> None:
     with st.sidebar:
         st.header("💰 QuickLoan")
         st.caption("FastFinance AI Loan Assistant")
+
+        # True for the whole span between "user submitted a prompt" and "the
+        # response finished saving" (set/cleared in main()). New Chat/switch/
+        # delete/Clear are all destructive to whatever is mid-generation in
+        # the active thread -- Streamlit kills that script run outright the
+        # instant any of these are clicked (a new interaction always stops
+        # the currently running script), discarding the in-flight response
+        # with it before it's ever appended to history. Disabling these
+        # actions here is the primary fix for the bug this guards against
+        # (a streamed response silently vanishing from an older thread);
+        # _recover_interrupted_generation() below is the fallback for a
+        # click landing in the instant before this disabled state reaches
+        # the browser.
+        generating = st.session_state.get("generating_thread_id") is not None
+        if generating:
+            st.caption("⏳ Generating a response — new chat/switch/delete disabled until it finishes.")
         st.divider()
 
-        if st.button("➕ New Chat", use_container_width=True):
+        if st.button("➕ New Chat", use_container_width=True, disabled=generating):
             # Skip creating another empty thread if the current one was
             # never used -- avoids cluttering the list with blank entries
             # from repeated clicks.
@@ -370,7 +386,7 @@ def _sidebar() -> None:
                 _new_thread()
                 st.rerun()
 
-        if st.button("🧹 Clear Conversation", use_container_width=True):
+        if st.button("🧹 Clear Conversation", use_container_width=True, disabled=generating):
             _clear_current_thread()
             st.rerun()
 
@@ -426,12 +442,12 @@ def _sidebar() -> None:
             with col_select:
                 if st.button(
                     label, key=f"thread_btn_{tid}",
-                    use_container_width=True, disabled=active,
+                    use_container_width=True, disabled=active or generating,
                 ):
                     st.session_state.thread_id = tid
                     st.rerun()
             with col_delete:
-                if st.button("🗑️", key=f"thread_del_{tid}", use_container_width=True):
+                if st.button("🗑️", key=f"thread_del_{tid}", use_container_width=True, disabled=generating):
                     _delete_thread(tid)
                     st.rerun()
 
@@ -615,6 +631,68 @@ def _handle_hitl() -> bool:
     return True
 
 
+def _recover_interrupted_generation() -> None:
+    """Detect and gracefully surface a generation that got killed mid-flight.
+
+    Streamlit stops the currently running script outright -- raising an
+    exception that unwinds the whole call stack, including this file's own
+    try/finally around graph.invoke() -- the moment a *new* user interaction
+    arrives while a script is still running. Clicking New Chat, switching
+    threads, or deleting a thread while a response is still streaming (in
+    that same thread or even a different one) all do this. graph.invoke()
+    never returns in that case, so the code that appends the assistant's
+    reply to thread["messages"] never runs -- the text that was visibly
+    streaming into the placeholder a moment ago is gone with no error, no
+    exception the user ever sees, and no trace in the thread it belonged to.
+    That's exactly what "the response vanished from the older thread" looks
+    like from the outside.
+
+    _sidebar() disables the destructive actions (New Chat, thread switch,
+    delete, Clear Conversation) for the whole span main() has
+    generating_thread_id set, which prevents the vast majority of these
+    clicks outright -- that's the primary fix. This function is the safety
+    net for the narrow remaining race (a click landing in the instant before
+    that disabled state has reached the browser): rather than leaving the
+    thread silently ending on an unanswered question, it leaves a clear
+    note explaining what happened.
+
+    Runs at the top of every script pass, before _sidebar() renders, and
+    pops the flag unconditionally. A stale True here always means the run
+    that set it never reached its own normal-completion cleanup (every
+    normal path in main() -- blocked, HITL-pending, or a plain response --
+    pops this same key right after graph.invoke() returns), so treating any
+    leftover True as "that generation was interrupted" is always correct,
+    never a false positive.
+    """
+    tid = st.session_state.get("generating_thread_id")
+    if not tid:
+        return
+    if "pending_prompt" in st.session_state:
+        # Phase 1 of the submit (see main()) just set both of these keys and
+        # reran -- phase 2 (later in *this same* run) hasn't started
+        # consuming pending_prompt yet, so nothing has actually been
+        # interrupted. This is the normal, expected transient state between
+        # the two phases, not a leftover from a killed run -- leave both
+        # keys alone for that code to pick up as intended. (Phase 2 pops
+        # pending_prompt as the very first thing it does, so its absence
+        # here -- checked below -- is what actually distinguishes "still
+        # mid-handoff" from "really was interrupted".)
+        return
+    st.session_state.pop("generating_thread_id", None)
+    thread = st.session_state.threads.get(tid)
+    if not thread:
+        return
+    messages = thread.get("messages", [])
+    if messages and messages[-1].get("role") == "user":
+        note = (
+            "_Response interrupted -- a new conversation was started (or this "
+            "thread was switched away from / deleted) before the reply "
+            "finished. Please resend your question._"
+        )
+        thread["messages"].append({"role": "assistant", "content": note})
+        thread["routes"].append("⚠️ Interrupted")
+
+
 def main() -> None:
     st.set_page_config(page_title="QuickLoan | FastFinance", page_icon="💰", layout="wide")
     st.title("💰 QuickLoan | FastFinance")
@@ -622,6 +700,7 @@ def main() -> None:
     st.markdown(_CURSOR_CSS, unsafe_allow_html=True)
 
     _init_session()
+    _recover_interrupted_generation()
     _sidebar()
     _render_history()
 
@@ -631,26 +710,41 @@ def main() -> None:
         prompt = st.chat_input("Ask about loan rates, eligibility, or our policies…")
         if prompt:
             thread = st.session_state.threads[st.session_state.thread_id]
-            # _sidebar() (which renders the conversation list) already ran
-            # earlier in this same script pass -- setting thread["title"]
-            # here updates the dict, but the sidebar UI already emitted its
-            # old "New chat" label and Streamlit doesn't retroactively
-            # re-render it within one run. Without an extra rerun once the
-            # response finishes, the sidebar shows "New chat" for this
-            # thread until the *next* unrelated interaction happens to
-            # trigger one. Remember it's a new thread here; each response
-            # branch below reruns once at the end only when this is True, so
-            # ongoing turns in an existing thread never pay for an extra
-            # rerun (which would also blank the streamed text and replace it
-            # with a fresh render).
-            is_first_message_in_thread = not thread["messages"]
-            if is_first_message_in_thread:
+            if not thread["messages"]:
                 # First message in this thread -- use it (trimmed) as the
                 # sidebar label so each conversation is identifiable at a glance.
                 thread["title"] = prompt if len(prompt) <= 40 else prompt[:40].rstrip() + "…"
             thread["messages"].append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
+
+            # Two-phase submit -- stash the prompt and rerun immediately,
+            # rather than calling graph.invoke() (which can block for many
+            # seconds) in this same pass. _sidebar() already executed
+            # *earlier* in this very run, before we even knew a prompt was
+            # coming -- setting generating_thread_id here and then calling
+            # graph.invoke() in this same pass would leave the New Chat/
+            # switch/delete buttons showing enabled in the browser for the
+            # entire generation, since Streamlit doesn't retroactively patch
+            # an already-rendered widget's `disabled` value mid-script.
+            # (Verified live: with the flag set here instead of via rerun,
+            # the button's disabled attribute measured false for the whole
+            # duration of a real generation.) Rerunning immediately means
+            # the *next* pass's _sidebar() call -- which runs before that
+            # pass's own graph.invoke() -- is the one that actually renders
+            # the disabled state, closing the gap completely instead of
+            # just narrowing it.
+            st.session_state["generating_thread_id"] = st.session_state.thread_id
+            st.session_state["pending_prompt"] = prompt
+            st.rerun()
+
+        # Second phase of the submit above -- runs on the rerun it triggered,
+        # once this pass's _sidebar() call (above) has already rendered with
+        # the destructive buttons correctly disabled. _render_history()
+        # (also above) already displayed the user's message appended in the
+        # previous phase, so only the assistant's reply is new here.
+        pending_prompt = st.session_state.get("pending_prompt")
+        if pending_prompt is not None and st.session_state.get("generating_thread_id") == st.session_state.thread_id:
+            st.session_state.pop("pending_prompt", None)
+            thread = st.session_state.threads[st.session_state.thread_id]
             _scroll_to_bottom()
 
             # Open the assistant bubble early -- before we have a response -- so
@@ -671,11 +765,19 @@ def main() -> None:
             _nodes._stream_callback = _StreamingState(placeholder, char_delay=char_delay)
             try:
                 result = st.session_state.graph.invoke(
-                    build_input_state(prompt),
+                    build_input_state(pending_prompt),
                     config=get_thread_config(st.session_state.thread_id),
                 )
             finally:
                 _nodes._stream_callback = None
+
+            # graph.invoke() returned normally -- past the vulnerable window
+            # (see _recover_interrupted_generation()). Deliberately NOT in
+            # the finally block above: if this script run gets killed
+            # *during* invoke(), generating_thread_id must stay set so the
+            # next run's recovery check can tell this generation never
+            # finished.
+            st.session_state.pop("generating_thread_id", None)
 
             response    = result["response"]
             route_label = format_route_label(result)
@@ -695,8 +797,7 @@ def main() -> None:
                 thread["messages"].append({"role": "assistant", "content": response})
                 thread["routes"].append(route_label)
                 _scroll_to_bottom()
-                if is_first_message_in_thread:
-                    st.rerun()
+                st.rerun()
             elif needs_human_review(result):
                 placeholder.empty()
                 st.session_state.pending_hitl = {
@@ -730,8 +831,7 @@ def main() -> None:
                 thread["messages"].append({"role": "assistant", "content": response})
                 thread["routes"].append(route_label)
                 _scroll_to_bottom()
-                if is_first_message_in_thread:
-                    st.rerun()
+                st.rerun()
 
 
 if __name__ == "__main__":
