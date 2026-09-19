@@ -17,7 +17,13 @@
       "Bash(python -m quickloan.agent)",
       "Bash(cd \"e:/Applied AI Engineering/quickloan/s01/starter\" && cat /tmp/agent_err.txt)",
       "WebSearch",
-      "WebFetch(domain:console.groq.com)"
+      "WebFetch(domain:console.groq.com)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(az acr *)",
+      "Bash(docker tag *)",
+      "Bash(docker push *)",
+      "Bash(az container *)"
     ]
   }
 }
